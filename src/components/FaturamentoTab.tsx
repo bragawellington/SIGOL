@@ -13,7 +13,7 @@ interface FaturamentoTabProps {
   currentUser: User;
   onUpdateLaunchStatus: (
     id: string,
-    status: "APROVADO" | "DEVOLVIDO" | "FATURADO",
+    status: "PENDENTE" | "APROVADO" | "DEVOLVIDO" | "FATURADO",
     obs?: string,
     rate?: number,
     horas_sap?: number,
