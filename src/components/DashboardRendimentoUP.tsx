@@ -97,7 +97,7 @@ export default function DashboardRendimentoUP({
     const matchesNucleo = selectedNucleo === "TODOS" || item.nucleo === selectedNucleo;
     const matchesFazenda = selectedFazenda === "TODOS" || item.fazenda === selectedFazenda;
     
-    return matchesSearch && matchesNucleo && matchesFazenda;
+    return matchesSearch && matchesNucleo && matchesFazenda && item.totalHorasTrabalhadas > 0;
   });
 
   // Sort by Yield (descending)
