@@ -1,11 +1,11 @@
 import { User, Colaborador, Equipamento, CadastroFlorestal, Lancamento, Auditoria } from '../types';
 
 export const demoUsers: User[] = [
-  { id: "usr_1", nome: "João Silva", email: "joao@sigol.com.br", perfil: "OPERADOR", ativo: true, created_at: "2026-05-10" },
-  { id: "usr_2", nome: "Pedro Santos", email: "pedro@sigol.com.br", perfil: "TÉCNICO", ativo: true, created_at: "2026-05-11" },
-  { id: "usr_3", nome: "Maria Souza", email: "maria@sigol.com.br", perfil: "FATURAMENTO", ativo: true, created_at: "2026-05-12" },
-  { id: "usr_4", nome: "Carlos Oliveira", email: "carlos@sigol.com.br", perfil: "GERÊNCIA", ativo: true, created_at: "2026-05-01" },
-  { id: "usr_5", nome: "Ana Costa", email: "ana@sigol.com.br", perfil: "OPERADOR", ativo: true, created_at: "2026-05-15" }
+  { id: "usr_1", nome: "João Silva", email: "joao@sigol.com.br", codigo: "OP1001", perfil: "OPERADOR", ativo: true, created_at: "2026-05-10", senha: "sigol123" },
+  { id: "usr_2", nome: "Pedro Santos", email: "pedro@sigol.com.br", codigo: "TEC001", perfil: "TÉCNICO", ativo: true, created_at: "2026-05-11", senha: "sigol123" },
+  { id: "usr_3", nome: "Maria Souza", email: "maria@sigol.com.br", codigo: "FAT001", perfil: "FATURAMENTO", ativo: true, created_at: "2026-05-12", senha: "sigol123" },
+  { id: "usr_4", nome: "Carlos Oliveira", email: "carlos@sigol.com.br", codigo: "GER001", perfil: "GERÊNCIA", ativo: true, created_at: "2026-05-01", senha: "sigol123" },
+  { id: "usr_5", nome: "Ana Costa", email: "ana@sigol.com.br", codigo: "OP1002", perfil: "OPERADOR", ativo: true, created_at: "2026-05-15", senha: "sigol123" }
 ];
 
 export const demoColaboradores: Colaborador[] = [

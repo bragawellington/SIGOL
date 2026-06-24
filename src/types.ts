@@ -4,9 +4,11 @@ export interface User {
   id: string;
   nome: string;
   email: string;
+  codigo: string;
   perfil: ProfilOption;
   ativo: boolean;
   created_at: string;
+  senha?: string;
 }
 
 export interface Colaborador {

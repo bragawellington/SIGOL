@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import {
   Tractor, Users, MapPin, ShieldAlert, KeyRound, Clock,
-  DollarSign, LogIn, AlertTriangle, LayoutDashboard,
+  DollarSign, AlertTriangle, LayoutDashboard,
   LogOut, ClipboardList, Search, X, ChevronRight, Bell, Plus,
-  Loader2, Menu, TreePine, Settings, HelpCircle, ChevronDown
+  Loader2, Menu, TreePine, Settings, HelpCircle, Lock, Eye, EyeOff
 } from "lucide-react";
 
 import DashboardTab from "./components/DashboardTab";
@@ -26,6 +26,15 @@ import {
 } from "./lib/demoData";
 
 export default function App() {
+  // ── Auth State ──
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginCodigo, setLoginCodigo] = useState("");
+  const [loginSenha, setLoginSenha] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // ── App State ──
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
@@ -35,29 +44,97 @@ export default function App() {
   const [forestry, setForestry] = useState<CadastroFlorestal[]>([]);
   const [launches, setLaunches] = useState<Lancamento[]>([]);
   const [auditLogs, setAuditLogs] = useState<Auditoria[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [errorHeader, setErrorHeader] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [selectedDetailLaunch, setSelectedDetailLaunch] = useState<Lancamento | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // ── Data Loading ──
+  // ── Login ──
+  const handleLogin = async () => {
+    if (!loginCodigo.trim() || !loginSenha.trim()) {
+      setLoginError("Preencha o código e a senha.");
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError(null);
+
+    try {
+      if (isDemo || !supabase) {
+        // Demo mode: match by codigo + senha
+        const user = demoUsers.find(
+          u => u.codigo.toLowerCase() === loginCodigo.trim().toLowerCase() && u.senha === loginSenha
+        );
+        if (!user) {
+          setLoginError("Código ou senha incorretos.");
+          setLoginLoading(false);
+          return;
+        }
+        if (!user.ativo) {
+          setLoginError("Usuário inativo. Contate o administrador.");
+          setLoginLoading(false);
+          return;
+        }
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+      } else {
+        // Supabase: lookup user by codigo, verify password via RPC
+        const { data, error } = await supabase
+          .rpc('login_usuario', {
+            p_codigo: loginCodigo.trim(),
+            p_senha: loginSenha
+          });
+        if (error || !data || data.length === 0) {
+          setLoginError("Código ou senha incorretos.");
+          setLoginLoading(false);
+          return;
+        }
+        const user = data[0] as User;
+        if (!user.ativo) {
+          setLoginError("Usuário inativo. Contate o administrador.");
+          setLoginLoading(false);
+          return;
+        }
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        // Log audit
+        await supabase.from('auditoria').insert({
+          usuario: user.email,
+          acao: "LOGIN",
+          registro: "SESSÃO",
+          descricao: `Login via código ${user.codigo} — perfil ${user.perfil}`
+        });
+      }
+    } catch (err) {
+      console.error("Erro no login:", err);
+      setLoginError("Erro de conexão. Tente novamente.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setLoginCodigo("");
+    setLoginSenha("");
+    setLoginError(null);
+    setActiveTab("dashboard");
+    setShowUserMenu(false);
+  };
+
+  // ── Data Loading (after login) ──
   const loadAllData = async () => {
     try {
       setLoading(true);
       if (isDemo || !supabase) {
-        // Modo demonstração
         setUsers(demoUsers);
         setColaboradores(demoColaboradores);
         setEquipments(demoEquipamentos);
         setForestry(demoCadastroFlorestal);
         setLaunches(generateDemoLaunches());
         setAuditLogs(demoAuditoria);
-        if (!currentUser) {
-          setCurrentUser(demoUsers.find(u => u.perfil === "GERÊNCIA") || demoUsers[0]);
-        }
       } else {
-        // Supabase
         const [resUsers, resCol, resEquip, resForest, resLaunches, resAudit] = await Promise.all([
           supabase.from('usuarios').select('*'),
           supabase.from('colaboradores').select('*'),
@@ -72,9 +149,6 @@ export default function App() {
         if (resForest.data) setForestry(resForest.data);
         if (resLaunches.data) setLaunches(resLaunches.data);
         if (resAudit.data) setAuditLogs(resAudit.data);
-        if (!currentUser && resUsers.data && resUsers.data.length > 0) {
-          setCurrentUser(resUsers.data.find((u: User) => u.perfil === "GERÊNCIA") || resUsers.data[0]);
-        }
       }
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
@@ -84,7 +158,10 @@ export default function App() {
     }
   };
 
-  useEffect(() => { loadAllData(); }, []);
+  // Load data after authentication
+  useEffect(() => {
+    if (isAuthenticated) loadAllData();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (currentUser?.perfil === "OPERADOR") {
@@ -95,24 +172,10 @@ export default function App() {
     }
   }, [currentUser, activeTab]);
 
-  // ── Handlers ──
-  const handleSelectActiveUser = async (targetUser: User) => {
-    setCurrentUser(targetUser);
-    setErrorHeader(null);
-    setShowUserMenu(false);
-    if (supabase && !isDemo) {
-      await supabase.from('auditoria').insert({ usuario: targetUser.email, acao: "LOGIN", registro: "SESSÃO", descricao: `Login como ${targetUser.perfil}` });
-    }
-    await loadAllData();
-  };
-
+  // ── CRUD Handlers ──
   const handleAddLaunch = async (newLaunch: Omit<Lancamento, "id" | "criado_por" | "criado_em" | "status" | "aprovado_por" | "aprovado_em" | "faturado_por" | "faturado_em" | "rendimento" | "horas_trabalhadas" | "equipamento" | "fazenda" | "nucleo" | "area_up">) => {
     if (!currentUser) return;
-    if (isDemo) {
-      alert("Modo demonstração: operação simulada com sucesso.");
-      await loadAllData();
-      return;
-    }
+    if (isDemo) { alert("Modo demonstração: operação simulada com sucesso."); await loadAllData(); return; }
     if (supabase) {
       const { error } = await supabase.from('lancamentos').insert({ ...newLaunch, criado_por: currentUser.email, status: "PENDENTE" });
       if (error) { alert("Falha ao criar lançamento."); throw error; }
@@ -122,10 +185,7 @@ export default function App() {
 
   const handleUpdateLaunchStatus = async (id: string, status: "PENDENTE" | "APROVADO" | "DEVOLVIDO" | "FATURADO", obs?: string, rate?: number, horas_sap?: number, otherFields?: Partial<Lancamento>) => {
     if (!currentUser) return;
-    if (isDemo) {
-      setLaunches(prev => prev.map(l => l.id === id ? { ...l, status, observacao: obs || l.observacao, ...otherFields } : l));
-      return;
-    }
+    if (isDemo) { setLaunches(prev => prev.map(l => l.id === id ? { ...l, status, observacao: obs || l.observacao, ...otherFields } : l)); return; }
     if (supabase) {
       const updates: any = { status };
       if (obs !== undefined) updates.observacao = obs;
@@ -135,17 +195,14 @@ export default function App() {
       if (status === "FATURADO") { updates.faturado_por = currentUser.email; updates.faturado_em = new Date().toISOString(); }
       if (otherFields) Object.assign(updates, otherFields);
       const { error } = await supabase.from('lancamentos').update(updates).eq('id', id);
-      if (error) { alert("Falha ao atualizar lançamento."); }
+      if (error) alert("Falha ao atualizar lançamento.");
       await loadAllData();
     }
   };
 
   const handleBulkBill = async (ids: string[], rateOverride?: number) => {
     if (!currentUser) return;
-    if (isDemo) {
-      setLaunches(prev => prev.map(l => ids.includes(l.id) ? { ...l, status: "FATURADO" as const, faturado_por: currentUser!.email, faturado_em: new Date().toISOString() } : l));
-      return;
-    }
+    if (isDemo) { setLaunches(prev => prev.map(l => ids.includes(l.id) ? { ...l, status: "FATURADO" as const, faturado_por: currentUser!.email, faturado_em: new Date().toISOString() } : l)); return; }
     if (supabase) {
       for (const id of ids) {
         await supabase.from('lancamentos').update({ status: "FATURADO", faturado_por: currentUser.email, faturado_em: new Date().toISOString(), ...(rateOverride ? { valor_hora_faturamento: rateOverride } : {}) }).eq('id', id);
@@ -157,86 +214,49 @@ export default function App() {
   const handleAddEquipment = async (newEq: Omit<Equipamento, "id" | "horas_acumuladas" | "valor_produzido" | "utilizacao_mensal">) => {
     if (!currentUser) return;
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
-    if (supabase) {
-      const { error } = await supabase.from('equipamentos').insert(newEq);
-      if (error) { alert("Falha ao adicionar equipamento."); throw error; }
-      await loadAllData();
-    }
+    if (supabase) { const { error } = await supabase.from('equipamentos').insert(newEq); if (error) { alert("Falha ao adicionar equipamento."); throw error; } await loadAllData(); }
   };
 
   const handleAddForest = async (newForest: Omit<CadastroFlorestal, "id">) => {
     if (!currentUser) return;
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
-    if (supabase) {
-      const { error } = await supabase.from('cadastro_florestal').insert(newForest);
-      if (error) { alert("Falha ao adicionar UP."); throw error; }
-      await loadAllData();
-    }
+    if (supabase) { const { error } = await supabase.from('cadastro_florestal').insert(newForest); if (error) { alert("Falha ao adicionar UP."); throw error; } await loadAllData(); }
   };
 
   const handleImportForestList = async (list: Omit<CadastroFlorestal, "id">[]) => {
     if (!currentUser) return;
     if (isDemo) { alert("Modo demonstração: importação simulada."); return; }
-    if (supabase) {
-      const { error } = await supabase.from('cadastro_florestal').insert(list);
-      if (error) { alert("Falha na importação."); throw error; }
-      await loadAllData();
-    }
+    if (supabase) { const { error } = await supabase.from('cadastro_florestal').insert(list); if (error) { alert("Falha na importação."); throw error; } await loadAllData(); }
   };
 
   const handleAddColaborador = async (col: Omit<Colaborador, "id">) => {
     if (!currentUser) return;
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
-    if (supabase) {
-      const { error } = await supabase.from('colaboradores').insert(col);
-      if (error) { alert("Falha ao adicionar colaborador."); throw error; }
-      await loadAllData();
-    }
+    if (supabase) { const { error } = await supabase.from('colaboradores').insert(col); if (error) { alert("Falha ao adicionar colaborador."); throw error; } await loadAllData(); }
   };
 
   const handleImportColaboradorList = async (list: Omit<Colaborador, "id">[]) => {
     if (!currentUser) return;
     if (isDemo) { alert("Modo demonstração: importação simulada."); return; }
-    if (supabase) {
-      const { error } = await supabase.from('colaboradores').insert(list);
-      if (error) { alert("Falha na importação."); throw error; }
-      await loadAllData();
-    }
+    if (supabase) { const { error } = await supabase.from('colaboradores').insert(list); if (error) { alert("Falha na importação."); throw error; } await loadAllData(); }
   };
 
   const handleImportLaunchList = async (list: any[]) => {
     if (!currentUser) return;
     if (isDemo) { alert("Modo demonstração: importação simulada."); return; }
-    if (supabase) {
-      const { error } = await supabase.from('lancamentos').insert(list.map(l => ({ ...l, criado_por: currentUser!.email, status: "PENDENTE" })));
-      if (error) { alert("Falha na importação."); throw error; }
-      await loadAllData();
-    }
+    if (supabase) { const { error } = await supabase.from('lancamentos').insert(list.map(l => ({ ...l, criado_por: currentUser!.email, status: "PENDENTE" }))); if (error) { alert("Falha na importação."); throw error; } await loadAllData(); }
   };
 
   const handleClearAuditLogs = async () => {
     if (!currentUser) return;
     if (isDemo) { setAuditLogs([]); return; }
-    if (supabase) {
-      await supabase.from('auditoria').delete().neq('id', '');
-      await loadAllData();
-    }
+    if (supabase) { await supabase.from('auditoria').delete().neq('id', ''); await loadAllData(); }
   };
 
   const handleAddUser = async (newUser: Omit<User, "id" | "created_at">) => {
     if (!currentUser) return;
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
-    if (supabase) {
-      const { error } = await supabase.from('usuarios').insert(newUser);
-      if (error) { alert("Falha ao registrar usuário."); throw error; }
-      await loadAllData();
-    }
-  };
-
-  const handleLogout = () => {
-    if (window.confirm("Deseja sair da sessão?")) {
-      if (users.length > 0) handleSelectActiveUser(users[0]);
-    }
+    if (supabase) { const { error } = await supabase.from('usuarios').insert(newUser); if (error) { alert("Falha ao registrar usuário."); throw error; } await loadAllData(); }
   };
 
   // ── Navigation ──
@@ -276,20 +296,112 @@ export default function App() {
   const pendingCount = launches.filter(l => l.status === "PENDENTE").length;
   const approvedCount = launches.filter(l => l.status === "APROVADO").length;
 
-  // ── Tab titles ──
   const tabTitles: Record<string, string> = {
-    dashboard: "Dashboard Executivo",
-    pendencias: "Central de Pendências",
-    lancamentos: "Lançamentos",
-    "controle-mensal": "Controle Mensal",
-    faturamento: "Faturamento",
-    equipamentos: "Equipamentos",
-    "cadastro-florestal": "Cadastro Florestal",
-    colaboradores: "Colaboradores",
-    auditoria: "Auditoria",
-    usuarios: "Gestão de Usuários"
+    dashboard: "Dashboard Executivo", pendencias: "Central de Pendências", lancamentos: "Lançamentos",
+    "controle-mensal": "Controle Mensal", faturamento: "Faturamento", equipamentos: "Equipamentos",
+    "cadastro-florestal": "Cadastro Florestal", colaboradores: "Colaboradores",
+    auditoria: "Auditoria", usuarios: "Gestão de Usuários"
   };
 
+  // ═══════════════════════════════════════════════
+  // TELA DE LOGIN
+  // ═══════════════════════════════════════════════
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 font-sans antialiased">
+        <div className="w-full max-w-sm">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 bg-[#2563eb] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
+              <TreePine className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">SIGOL</h1>
+            <p className="text-sm text-slate-400 mt-1">Sistema Integrado de Gestão Operacional</p>
+          </div>
+
+          {/* Login card */}
+          <div className="bg-white rounded-2xl shadow-2xl p-6 space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-[#0f172a]">Entrar</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Use seu código único e senha</p>
+            </div>
+
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600 font-medium animate-fadeIn">
+                {loginError}
+              </div>
+            )}
+
+            {/* Código único */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Código único</label>
+              <input
+                type="text"
+                value={loginCodigo}
+                onChange={(e) => { setLoginCodigo(e.target.value.toUpperCase()); setLoginError(null); }}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                placeholder="Ex: OP1001, TEC001, GER001"
+                autoFocus
+                className="w-full px-3 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-sm text-[#0f172a] placeholder-slate-400 focus:ring-2 focus:ring-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all font-medium"
+              />
+            </div>
+
+            {/* Senha */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Senha</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={loginSenha}
+                  onChange={(e) => { setLoginSenha(e.target.value); setLoginError(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  placeholder="••••••••"
+                  className="w-full px-3 py-2.5 pr-10 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-sm text-[#0f172a] placeholder-slate-400 focus:ring-2 focus:ring-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Botão */}
+            <button
+              onClick={handleLogin}
+              disabled={loginLoading}
+              className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] disabled:bg-[#93c5fd] text-white font-medium text-sm py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {loginLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Verificando...</>
+              ) : (
+                <><Lock className="w-4 h-4" /> Entrar</>
+              )}
+            </button>
+
+            {/* Demo hint */}
+            {isDemo && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
+                <p className="text-[11px] font-semibold text-amber-700">Modo Demonstração</p>
+                <p className="text-[10px] text-amber-600 leading-relaxed">
+                  Códigos disponíveis: <span className="font-mono font-semibold">OP1001</span> (Operador), <span className="font-mono font-semibold">TEC001</span> (Técnico), <span className="font-mono font-semibold">FAT001</span> (Faturamento), <span className="font-mono font-semibold">GER001</span> (Gerência).
+                  Senha: <span className="font-mono font-semibold">sigol123</span>
+                </p>
+              </div>
+            )}
+          </div>
+
+          <p className="text-center text-[10px] text-slate-500 mt-6">SIGOL v2.0 — Gestão Florestal</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  // APP PRINCIPAL (após login)
+  // ═══════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans antialiased">
 
@@ -312,18 +424,11 @@ export default function App() {
         <div className="hidden md:flex relative max-w-md w-full mx-6">
           <div className="relative w-full">
             <Search className="absolute left-3 top-2 w-4 h-4 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Buscar UP, Frota, Fazenda, Operador..."
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              className="w-full pl-9 pr-20 py-1.5 bg-[#1e293b] border border-[#334155] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all"
-            />
+            <input type="text" placeholder="Buscar UP, Frota, Fazenda, Operador..." value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)}
+              className="w-full pl-9 pr-20 py-1.5 bg-[#1e293b] border border-[#334155] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] focus:outline-none transition-all" />
             <kbd className="absolute right-3 top-1.5 text-[10px] text-slate-500 bg-[#0f172a] border border-[#334155] px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
             {globalSearch && (
-              <button onClick={() => setGlobalSearch("")} className="absolute right-12 top-2 text-slate-500 hover:text-slate-300">
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <button onClick={() => setGlobalSearch("")} className="absolute right-12 top-2 text-slate-500 hover:text-slate-300"><X className="w-3.5 h-3.5" /></button>
             )}
           </div>
 
@@ -393,12 +498,6 @@ export default function App() {
 
         {/* Right */}
         <div className="flex items-center gap-2">
-          {activeTab === "lancamentos" && (
-            <button onClick={() => { setActiveTab("lancamentos"); }}
-              className="hidden sm:flex items-center gap-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
-              <Plus className="w-3.5 h-3.5" /> Novo Lançamento
-            </button>
-          )}
           <div className="hidden sm:flex items-center text-[11px] text-slate-400 bg-[#1e293b] px-2.5 py-1 rounded-md border border-[#334155]">
             21/06 → 20/07
           </div>
@@ -409,7 +508,7 @@ export default function App() {
             )}
           </button>
 
-          {/* User avatar */}
+          {/* User avatar — only logout, no profile switching */}
           {currentUser && (
             <div className="relative">
               <button onClick={() => setShowUserMenu(!showUserMenu)}
@@ -421,30 +520,20 @@ export default function App() {
                   <p className="text-[11px] font-medium text-white leading-tight">{currentUser.nome.split(" ")[0]}</p>
                   <p className="text-[9px] text-slate-500">{currentUser.perfil}</p>
                 </div>
-                <ChevronDown className="w-3 h-3 text-slate-500 hidden lg:block" />
               </button>
 
               {showUserMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl border border-[#e2e8f0] shadow-xl z-50 py-1 animate-fadeIn">
-                    <div className="px-3 py-2 border-b border-[#f1f5f9]">
+                  <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl border border-[#e2e8f0] shadow-xl z-50 py-1 animate-fadeIn">
+                    <div className="px-3 py-2.5 border-b border-[#f1f5f9]">
                       <p className="text-xs font-semibold text-[#0f172a]">{currentUser.nome}</p>
-                      <p className="text-[10px] text-slate-400">{currentUser.email}</p>
+                      <p className="text-[10px] text-slate-400">{currentUser.codigo} • {currentUser.perfil}</p>
                     </div>
-                    <p className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Trocar perfil</p>
-                    {users.map(u => (
-                      <button key={u.id} onClick={() => handleSelectActiveUser(u)}
-                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[#f8fafc] flex items-center justify-between transition-colors ${u.id === currentUser.id ? "text-[#2563eb] font-medium" : "text-slate-600"}`}>
-                        <span>{u.nome}</span>
-                        <span className="text-[10px] text-slate-400">{u.perfil}</span>
-                      </button>
-                    ))}
-                    <div className="border-t border-[#f1f5f9] mt-1">
-                      <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2 transition-colors">
-                        <LogOut className="w-3.5 h-3.5" /> Sair
-                      </button>
-                    </div>
+                    <button onClick={handleLogout}
+                      className="w-full text-left px-3 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                      <LogOut className="w-3.5 h-3.5" /> Sair
+                    </button>
                   </div>
                 </>
               )}
@@ -455,8 +544,6 @@ export default function App() {
 
       {/* ═══════ BODY ═══════ */}
       <div className="flex-1 flex overflow-hidden">
-
-        {/* Sidebar overlay mobile */}
         {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
         {/* ═══════ SIDEBAR ═══════ */}
@@ -475,9 +562,7 @@ export default function App() {
                         return (
                           <button key={id} onClick={() => { setActiveTab(id); setSidebarOpen(false); }}
                             className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-lg transition-all ${
-                              isActive
-                                ? "bg-[#eff6ff] text-[#2563eb]"
-                                : "text-slate-600 hover:bg-[#f8fafc] hover:text-[#0f172a]"
+                              isActive ? "bg-[#eff6ff] text-[#2563eb]" : "text-slate-600 hover:bg-[#f8fafc] hover:text-[#0f172a]"
                             }`}>
                             <Icon className={`w-4 h-4 ${isActive ? "text-[#2563eb]" : "text-slate-400"}`} />
                             <span className="truncate">{label}</span>
@@ -496,8 +581,6 @@ export default function App() {
               })}
             </nav>
           </div>
-
-          {/* Sidebar footer */}
           <div className="border-t border-[#e2e8f0] p-3 space-y-1">
             <button className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-slate-500 hover:bg-[#f8fafc] rounded-lg transition-colors">
               <HelpCircle className="w-4 h-4" /> Suporte
@@ -516,7 +599,6 @@ export default function App() {
 
         {/* ═══════ MAIN CONTENT ═══════ */}
         <main className="flex-1 overflow-y-auto">
-          {/* Sub-header */}
           <div className="sticky top-0 z-10 bg-[#f8fafc] border-b border-[#e2e8f0] px-4 lg:px-6 py-3 flex items-center justify-between">
             <div>
               <h1 className="text-lg font-semibold text-[#0f172a]">{tabTitles[activeTab] || ""}</h1>
@@ -545,7 +627,7 @@ export default function App() {
               {activeTab === "cadastro-florestal" && <CadastroFlorestalTab forestry={forestry} currentUser={currentUser} onAddForest={handleAddForest} onImportForestList={handleImportForestList} />}
               {activeTab === "colaboradores" && <ColaboradoresTab colaboradores={colaboradores} currentUser={currentUser} onAddColaborador={handleAddColaborador} onImportColaboradorList={handleImportColaboradorList} />}
               {activeTab === "auditoria" && <AuditoriaTab logs={auditLogs} currentUser={currentUser} onClearLogs={handleClearAuditLogs} />}
-              {activeTab === "usuarios" && <GestaoUsuariosTab users={users} currentUser={currentUser} onSelectUser={handleSelectActiveUser} onAddUser={handleAddUser} />}
+              {activeTab === "usuarios" && <GestaoUsuariosTab users={users} currentUser={currentUser} onSelectUser={() => {}} onAddUser={handleAddUser} />}
             </div>
           )}
         </main>
@@ -565,7 +647,7 @@ export default function App() {
         })}
       </nav>
 
-      {/* Detail modal for launch from search */}
+      {/* Detail modal */}
       {selectedDetailLaunch && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSelectedDetailLaunch(null)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-5 space-y-3 animate-fadeIn" onClick={e => e.stopPropagation()}>

@@ -12,9 +12,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   nome TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
+  codigo TEXT UNIQUE NOT NULL,
   perfil TEXT NOT NULL CHECK (perfil IN ('OPERADOR', 'TÉCNICO', 'FATURAMENTO', 'GERÊNCIA')),
   ativo BOOLEAN DEFAULT true,
-  senha_hash TEXT,
+  senha_hash TEXT NOT NULL DEFAULT crypt('sigol123', gen_salt('bf')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -112,6 +113,20 @@ $$;
 
 GRANT EXECUTE ON FUNCTION buscar_up(TEXT) TO anon, authenticated;
 
+-- ── RPC: login_usuario (autenticação por código único + senha) ──
+CREATE OR REPLACE FUNCTION login_usuario(p_codigo TEXT, p_senha TEXT)
+RETURNS SETOF usuarios
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+  SELECT * FROM usuarios
+  WHERE codigo = UPPER(p_codigo)
+    AND senha_hash = crypt(p_senha, senha_hash)
+    AND ativo = true
+  LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION login_usuario(TEXT, TEXT) TO anon, authenticated;
+
 -- ── RLS (Row Level Security) ──
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE colaboradores ENABLE ROW LEVEL SECURITY;
@@ -139,12 +154,12 @@ CREATE POLICY "Permitir update autenticado" ON lancamentos FOR UPDATE USING (tru
 CREATE POLICY "Permitir delete autenticado" ON auditoria FOR DELETE USING (true);
 
 -- ── Dados iniciais de teste (opcional) ──
-INSERT INTO usuarios (nome, email, perfil) VALUES
-  ('João Silva', 'joao@sigol.com.br', 'OPERADOR'),
-  ('Pedro Santos', 'pedro@sigol.com.br', 'TÉCNICO'),
-  ('Maria Souza', 'maria@sigol.com.br', 'FATURAMENTO'),
-  ('Carlos Oliveira', 'carlos@sigol.com.br', 'GERÊNCIA'),
-  ('Ana Costa', 'ana@sigol.com.br', 'OPERADOR')
+INSERT INTO usuarios (nome, email, codigo, perfil, senha_hash) VALUES
+  ('João Silva', 'joao@sigol.com.br', 'OP1001', 'OPERADOR', crypt('sigol123', gen_salt('bf'))),
+  ('Pedro Santos', 'pedro@sigol.com.br', 'TEC001', 'TÉCNICO', crypt('sigol123', gen_salt('bf'))),
+  ('Maria Souza', 'maria@sigol.com.br', 'FAT001', 'FATURAMENTO', crypt('sigol123', gen_salt('bf'))),
+  ('Carlos Oliveira', 'carlos@sigol.com.br', 'GER001', 'GERÊNCIA', crypt('sigol123', gen_salt('bf'))),
+  ('Ana Costa', 'ana@sigol.com.br', 'OP1002', 'OPERADOR', crypt('sigol123', gen_salt('bf')))
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO colaboradores (registro, nome, funcao, equipe) VALUES
