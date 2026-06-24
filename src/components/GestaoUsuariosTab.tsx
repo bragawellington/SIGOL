@@ -27,6 +27,7 @@ export default function GestaoUsuariosTab({
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
+    codigo: "",
     perfil: "OPERADOR" as ProfilOption,
     ativo: true
   });
@@ -77,6 +78,7 @@ export default function GestaoUsuariosTab({
     setValidationError(null);
 
     if (!formData.nome.trim()) return setValidationError("Favor preencher o nome completo.");
+    if (!formData.codigo.trim()) return setValidationError("Favor preencher o código único.");
     if (!formData.email.trim() || !formData.email.includes("@")) {
       return setValidationError("E-mail corporativo inválido.");
     }
@@ -85,6 +87,7 @@ export default function GestaoUsuariosTab({
       await onAddUser({
         nome: formData.nome,
         email: formData.email.trim().toLowerCase(),
+        codigo: formData.codigo.trim().toUpperCase(),
         perfil: formData.perfil,
         ativo: formData.ativo
       });
@@ -93,6 +96,7 @@ export default function GestaoUsuariosTab({
       setFormData({
         nome: "",
         email: "",
+        codigo: "",
         perfil: "OPERADOR",
         ativo: true
       });
