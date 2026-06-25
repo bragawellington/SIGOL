@@ -135,6 +135,20 @@ $$;
 
 GRANT EXECUTE ON FUNCTION login_usuario(TEXT, TEXT) TO anon, authenticated;
 
+-- ── RPC: alterar_senha (troca de senha do usuário) ──
+CREATE OR REPLACE FUNCTION alterar_senha(p_codigo TEXT, p_nova_senha TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE usuarios
+  SET senha_hash = crypt(p_nova_senha, gen_salt('bf'))
+  WHERE codigo = UPPER(p_codigo);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION alterar_senha(TEXT, TEXT) TO anon, authenticated;
+
 -- ── RLS (Row Level Security) ──
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE colaboradores ENABLE ROW LEVEL SECURITY;

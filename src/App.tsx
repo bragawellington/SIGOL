@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  Tractor, Users, MapPin, ShieldAlert, KeyRound, Clock,
+  Tractor, Users, MapPin, ShieldAlert, KeyRound, Clock, Activity,
   DollarSign, AlertTriangle, LayoutDashboard,
   LogOut, ClipboardList, Search, X, ChevronRight, Bell, Plus,
   Loader2, Menu, TreePine, Settings, HelpCircle, Lock, Eye, EyeOff
@@ -16,6 +16,8 @@ import ColaboradoresTab from "./components/ColaboradoresTab";
 import AuditoriaTab from "./components/AuditoriaTab";
 import GestaoUsuariosTab from "./components/GestaoUsuariosTab";
 import PendenciasTab from "./components/PendenciasTab";
+import AtividadesTab from "./components/AtividadesTab";
+import AlterarSenhaTab from "./components/AlterarSenhaTab";
 
 import { User, Colaborador, Equipamento, CadastroFlorestal, Lancamento, Auditoria, Atividade } from "./types";
 import { formatCurrency, formatDateBR } from "./utils";
@@ -169,9 +171,9 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser?.perfil === "OPERADOR") {
-      if (activeTab !== "lancamentos" && activeTab !== "controle-mensal") setActiveTab("lancamentos");
+      if (!["lancamentos", "controle-mensal", "alterar-senha"].includes(activeTab)) setActiveTab("lancamentos");
     } else if (currentUser?.perfil === "TÉCNICO") {
-      const allowed = ["dashboard", "pendencias", "lancamentos", "controle-mensal"];
+      const allowed = ["dashboard", "pendencias", "lancamentos", "controle-mensal", "alterar-senha"];
       if (!allowed.includes(activeTab)) setActiveTab("dashboard");
     }
   }, [currentUser, activeTab]);
@@ -263,6 +265,24 @@ export default function App() {
     if (supabase) { const { error } = await supabase.from('usuarios').insert(newUser); if (error) { alert("Falha ao registrar usuário."); throw error; } await loadAllData(); }
   };
 
+  const handleAddAtividade = async (atv: Omit<Atividade, "id">) => {
+    if (!currentUser) return;
+    if (isDemo) { setAtividades(prev => [...prev, { ...atv, id: `atv_${Date.now()}` }]); return; }
+    if (supabase) { const { error } = await supabase.from('atividades').insert(atv); if (error) { alert("Falha ao cadastrar atividade."); throw error; } await loadAllData(); }
+  };
+
+  const handleUpdateAtividade = async (id: string, updates: Partial<Atividade>) => {
+    if (!currentUser) return;
+    if (isDemo) { setAtividades(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a)); return; }
+    if (supabase) { const { error } = await supabase.from('atividades').update(updates).eq('id', id); if (error) { alert("Falha ao atualizar."); } await loadAllData(); }
+  };
+
+  const handleDeleteAtividade = async (id: string) => {
+    if (!currentUser) return;
+    if (isDemo) { setAtividades(prev => prev.filter(a => a.id !== id)); return; }
+    if (supabase) { const { error } = await supabase.from('atividades').delete().eq('id', id); if (error) { alert("Falha ao excluir."); } await loadAllData(); }
+  };
+
   // ── Navigation ──
   const menuItems = [
     { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard, group: "Análise" },
@@ -273,13 +293,15 @@ export default function App() {
     { id: "equipamentos", label: "Equipamentos", Icon: Tractor, group: "Cadastros" },
     { id: "cadastro-florestal", label: "Cadastro Florestal", Icon: MapPin, group: "Cadastros" },
     { id: "colaboradores", label: "Colaboradores", Icon: Users, group: "Cadastros" },
+    { id: "atividades", label: "Atividades", Icon: Activity, group: "Cadastros" },
     { id: "auditoria", label: "Auditoria", Icon: ShieldAlert, group: "Sistema" },
-    { id: "usuarios", label: "Gestão de Usuários", Icon: KeyRound, group: "Sistema" }
+    { id: "usuarios", label: "Gestão de Usuários", Icon: KeyRound, group: "Sistema" },
+    { id: "alterar-senha", label: "Alterar Senha", Icon: Lock, group: "Sistema" }
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
-    if (currentUser?.perfil === "OPERADOR") return item.id === "lancamentos" || item.id === "controle-mensal";
-    if (currentUser?.perfil === "TÉCNICO") return ["dashboard", "pendencias", "lancamentos", "controle-mensal"].includes(item.id);
+    if (currentUser?.perfil === "OPERADOR") return ["lancamentos", "controle-mensal", "alterar-senha"].includes(item.id);
+    if (currentUser?.perfil === "TÉCNICO") return ["dashboard", "pendencias", "lancamentos", "controle-mensal", "alterar-senha"].includes(item.id);
     return true;
   });
 
@@ -303,8 +325,8 @@ export default function App() {
   const tabTitles: Record<string, string> = {
     dashboard: "Dashboard Executivo", pendencias: "Central de Pendências", lancamentos: "Lançamentos",
     "controle-mensal": "Controle Mensal", faturamento: "Faturamento", equipamentos: "Equipamentos",
-    "cadastro-florestal": "Cadastro Florestal", colaboradores: "Colaboradores",
-    auditoria: "Auditoria", usuarios: "Gestão de Usuários"
+    "cadastro-florestal": "Cadastro Florestal", colaboradores: "Colaboradores", atividades: "Gestão de Atividades",
+    auditoria: "Auditoria", usuarios: "Gestão de Usuários", "alterar-senha": "Alterar Senha"
   };
 
   // ═══════════════════════════════════════════════
@@ -632,6 +654,8 @@ export default function App() {
               {activeTab === "colaboradores" && <ColaboradoresTab colaboradores={colaboradores} currentUser={currentUser} onAddColaborador={handleAddColaborador} onImportColaboradorList={handleImportColaboradorList} />}
               {activeTab === "auditoria" && <AuditoriaTab logs={auditLogs} currentUser={currentUser} onClearLogs={handleClearAuditLogs} />}
               {activeTab === "usuarios" && <GestaoUsuariosTab users={users} currentUser={currentUser} onSelectUser={() => {}} onAddUser={handleAddUser} />}
+              {activeTab === "atividades" && <AtividadesTab atividades={atividades} currentUser={currentUser} onAddAtividade={handleAddAtividade} onUpdateAtividade={handleUpdateAtividade} onDeleteAtividade={handleDeleteAtividade} />}
+              {activeTab === "alterar-senha" && <AlterarSenhaTab currentUser={currentUser} />}
             </div>
           )}
         </main>
