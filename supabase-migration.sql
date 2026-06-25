@@ -91,6 +91,14 @@ CREATE TABLE IF NOT EXISTS auditoria (
   data_hora TIMESTAMPTZ DEFAULT now()
 );
 
+-- ── Tabela: atividades ──
+CREATE TABLE IF NOT EXISTS atividades (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nome TEXT UNIQUE NOT NULL,
+  descricao TEXT,
+  ativo BOOLEAN DEFAULT true
+);
+
 -- ── Índices ──
 CREATE INDEX IF NOT EXISTS idx_lancamentos_status ON lancamentos(status);
 CREATE INDEX IF NOT EXISTS idx_lancamentos_data ON lancamentos(data);
@@ -134,6 +142,7 @@ ALTER TABLE equipamentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cadastro_florestal ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lancamentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auditoria ENABLE ROW LEVEL SECURITY;
+ALTER TABLE atividades ENABLE ROW LEVEL SECURITY;
 
 -- Políticas permissivas para início (ajuste conforme necessidade de produção)
 CREATE POLICY "Permitir leitura pública" ON usuarios FOR SELECT USING (true);
@@ -152,6 +161,11 @@ CREATE POLICY "Permitir insert autenticado" ON auditoria FOR INSERT WITH CHECK (
 
 CREATE POLICY "Permitir update autenticado" ON lancamentos FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Permitir delete autenticado" ON auditoria FOR DELETE USING (true);
+
+CREATE POLICY "Permitir leitura pública" ON atividades FOR SELECT USING (true);
+CREATE POLICY "Permitir insert autenticado" ON atividades FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir update autenticado" ON atividades FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir delete autenticado" ON atividades FOR DELETE USING (true);
 
 -- ── Dados iniciais de teste (opcional) ──
 INSERT INTO usuarios (nome, email, codigo, perfil, senha_hash) VALUES

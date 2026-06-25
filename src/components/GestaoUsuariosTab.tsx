@@ -217,6 +217,18 @@ export default function GestaoUsuariosTab({
             </div>
 
             <div>
+              <label className="block text-[10px] uppercase font-bold text-[#64748b] mb-1">Código Único (Login)</label>
+              <input
+                type="text"
+                required
+                placeholder="Ex: 447, TEC001, GER001"
+                value={formData.codigo}
+                onChange={(e) => setFormData(prev => ({ ...prev, codigo: e.target.value.toUpperCase() }))}
+                className="w-full p-2 bg-white border border-[#e2e8f0] rounded-lg focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb] font-mono font-bold text-[#2563eb]"
+              />
+            </div>
+
+            <div>
               <label className="block text-[10px] uppercase font-bold text-[#64748b] mb-1">E-mail corporativo (@sigol)</label>
               <input
                 type="email"
@@ -285,6 +297,7 @@ export default function GestaoUsuariosTab({
               <thead>
                 <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[#2563eb] font-semibold uppercase tracking-wider">
                   <th className="p-3">Colaborador</th>
+                  <th className="p-3">Código</th>
                   <th className="p-3">E-mail corporativo</th>
                   <th className="p-3">Perfil de Acesso</th>
                   <th className="p-3 text-center">Permissões de Sistema</th>
@@ -304,6 +317,7 @@ export default function GestaoUsuariosTab({
                         <span>{u.nome}</span>
                         {u.email === currentUser.email && <span className="text-[8px] bg-[#2563eb] text-white font-semibold px-1.5 py-0.5 rounded animate-bounce">VOCÊ</span>}
                       </td>
+                      <td className="p-3 font-mono font-bold text-[#2563eb]">{u.codigo || "—"}</td>
                       <td className="p-3 font-semibold text-[#64748b] font-mono">{u.email}</td>
                       <td className="p-3">
                         <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${badge}`}>

@@ -17,12 +17,12 @@ import AuditoriaTab from "./components/AuditoriaTab";
 import GestaoUsuariosTab from "./components/GestaoUsuariosTab";
 import PendenciasTab from "./components/PendenciasTab";
 
-import { User, Colaborador, Equipamento, CadastroFlorestal, Lancamento, Auditoria } from "./types";
+import { User, Colaborador, Equipamento, CadastroFlorestal, Lancamento, Auditoria, Atividade } from "./types";
 import { formatCurrency, formatDateBR } from "./utils";
 import { supabase, isDemo } from "./lib/supabase";
 import {
   demoUsers, demoColaboradores, demoEquipamentos,
-  demoCadastroFlorestal, generateDemoLaunches, demoAuditoria
+  demoCadastroFlorestal, generateDemoLaunches, demoAuditoria, demoAtividades
 } from "./lib/demoData";
 
 export default function App() {
@@ -44,6 +44,7 @@ export default function App() {
   const [forestry, setForestry] = useState<CadastroFlorestal[]>([]);
   const [launches, setLaunches] = useState<Lancamento[]>([]);
   const [auditLogs, setAuditLogs] = useState<Auditoria[]>([]);
+  const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorHeader, setErrorHeader] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -134,14 +135,16 @@ export default function App() {
         setForestry(demoCadastroFlorestal);
         setLaunches(generateDemoLaunches());
         setAuditLogs(demoAuditoria);
+        setAtividades(demoAtividades);
       } else {
-        const [resUsers, resCol, resEquip, resForest, resLaunches, resAudit] = await Promise.all([
+        const [resUsers, resCol, resEquip, resForest, resLaunches, resAudit, resAtiv] = await Promise.all([
           supabase.from('usuarios').select('*'),
           supabase.from('colaboradores').select('*'),
           supabase.from('equipamentos').select('*'),
           supabase.from('cadastro_florestal').select('*'),
           supabase.from('lancamentos').select('*').order('data', { ascending: false }),
-          supabase.from('auditoria').select('*').order('data_hora', { ascending: false })
+          supabase.from('auditoria').select('*').order('data_hora', { ascending: false }),
+          supabase.from('atividades').select('*').order('nome', { ascending: true })
         ]);
         if (resUsers.data) setUsers(resUsers.data);
         if (resCol.data) setColaboradores(resCol.data);
@@ -149,6 +152,7 @@ export default function App() {
         if (resForest.data) setForestry(resForest.data);
         if (resLaunches.data) setLaunches(resLaunches.data);
         if (resAudit.data) setAuditLogs(resAudit.data);
+        if (resAtiv.data) setAtividades(resAtiv.data);
       }
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
@@ -620,7 +624,7 @@ export default function App() {
             <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6 animate-fadeIn">
               {activeTab === "dashboard" && <DashboardTab launches={launches} equipments={equipments} currentUser={currentUser} forestry={forestry} />}
               {activeTab === "pendencias" && <PendenciasTab launches={launches} equipments={equipments} colaboradores={colaboradores} currentUser={currentUser} onUpdateLaunchStatus={handleUpdateLaunchStatus} onNavigateToTab={setActiveTab} />}
-              {activeTab === "lancamentos" && <LancamentosTab launches={launches} equipments={equipments} forestry={forestry} colaboradores={colaboradores} currentUser={currentUser} onAddLaunch={handleAddLaunch} onUpdateLaunchStatus={handleUpdateLaunchStatus} onImportLaunchList={handleImportLaunchList} />}
+              {activeTab === "lancamentos" && <LancamentosTab launches={launches} equipments={equipments} forestry={forestry} colaboradores={colaboradores} currentUser={currentUser} atividades={atividades} onAddLaunch={handleAddLaunch} onUpdateLaunchStatus={handleUpdateLaunchStatus} onImportLaunchList={handleImportLaunchList} />}
               {activeTab === "controle-mensal" && <ControllingTab launches={launches} colaboradores={colaboradores} equipments={equipments} />}
               {activeTab === "faturamento" && <FaturamentoTab launches={launches} equipments={equipments} currentUser={currentUser} onUpdateLaunchStatus={handleUpdateLaunchStatus} onBulkBill={handleBulkBill} />}
               {activeTab === "equipamentos" && <EquipamentosTab equipments={equipments} launches={launches} currentUser={currentUser} onAddEquipment={handleAddEquipment} />}

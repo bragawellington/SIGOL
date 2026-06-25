@@ -1,4 +1,19 @@
-import { User, Colaborador, Equipamento, CadastroFlorestal, Lancamento, Auditoria } from '../types';
+import { User, Colaborador, Equipamento, CadastroFlorestal, Lancamento, Auditoria, Atividade } from '../types';
+
+export const demoAtividades: Atividade[] = [
+  { id: "atv_1", nome: "Corte Mecanizado", descricao: "Harvester", ativo: true },
+  { id: "atv_2", nome: "Baldeio de Madeira", descricao: "Forwarder", ativo: true },
+  { id: "atv_3", nome: "Derrubada e Traçamento", ativo: true },
+  { id: "atv_4", nome: "Derrubada Mecanizada", descricao: "Feller Buncher", ativo: true },
+  { id: "atv_5", nome: "Destocamento", ativo: true },
+  { id: "atv_6", nome: "Preparo de Solo", ativo: true },
+  { id: "atv_7", nome: "Limpeza de Área", ativo: true },
+  { id: "atv_8", nome: "Abertura de Estrada", ativo: true },
+  { id: "atv_9", nome: "Manutenção de Estrada", ativo: true },
+  { id: "atv_10", nome: "Terraplanagem", ativo: true },
+  { id: "atv_11", nome: "Carregamento", ativo: true },
+  { id: "atv_12", nome: "Trabalho Geral", ativo: true }
+];
 
 export const demoUsers: User[] = [
   { id: "usr_1", nome: "João Silva", email: "joao@sigol.com.br", codigo: "OP1001", perfil: "OPERADOR", ativo: true, created_at: "2026-05-10", senha: "sigol123" },

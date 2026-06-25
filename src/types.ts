@@ -81,3 +81,10 @@ export interface Auditoria {
   descricao: string;
   data_hora: string;
 }
+
+export interface Atividade {
+  id: string;
+  nome: string;
+  descricao?: string;
+  ativo: boolean;
+}

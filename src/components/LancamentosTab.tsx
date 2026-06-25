@@ -4,7 +4,7 @@ import {
   HelpCircle, Eye, Info, Calendar, Download, AlertTriangle, ChevronDown,
   FileSpreadsheet, Upload, LayoutGrid, List, Pencil
 } from "lucide-react";
-import { Lancamento, Equipamento, CadastroFlorestal, Colaborador, User } from "../types";
+import { Lancamento, Equipamento, CadastroFlorestal, Colaborador, User, Atividade } from "../types";
 import { formatCurrency, formatDecimal, formatDateBR, exportToCSV } from "../utils";
 
 interface LancamentosTabProps {
@@ -13,6 +13,7 @@ interface LancamentosTabProps {
   forestry: CadastroFlorestal[];
   colaboradores: Colaborador[];
   currentUser: User;
+  atividades: Atividade[];
   onAddLaunch: (launch: Omit<Lancamento, "id" | "criado_por" | "criado_em" | "status" | "aprovado_por" | "aprovado_em" | "faturado_por" | "faturado_em" | "rendimento" | "horas_trabalhadas" | "equipamento" | "fazenda" | "nucleo" | "area_up"> & { anexo?: string, anexo_nome?: string }) => Promise<void>;
   onUpdateLaunchStatus: (id: string, status: "PENDENTE" | "APROVADO" | "DEVOLVIDO" | "FATURADO", obs?: string, rate?: number, horas_sap?: number, otherFields?: Partial<Lancamento>) => Promise<void>;
   onImportLaunchList?: (list: any[]) => Promise<void>;
@@ -24,6 +25,7 @@ export default function LancamentosTab({
   forestry, 
   colaboradores, 
   currentUser,
+  atividades,
   onAddLaunch,
   onUpdateLaunchStatus,
   onImportLaunchList
@@ -56,11 +58,15 @@ export default function LancamentosTab({
     horimetro_inicial: "",
     horimetro_final: "",
     horas_sap: "",
-    atividade: "Corte Mecanizado",
+    atividade: "",
     operador_codigo: "",
     operador_nome: "",
     observacao: ""
   });
+
+  // Autocomplete search states (UP only)
+  const [upSearch, setUpSearch] = useState("");
+  const [showUpSuggestions, setShowUpSuggestions] = useState(false);
 
   // Editing general items states (for Faturamento and Gerência)
   const [editingLaunch, setEditingLaunch] = useState<Lancamento | null>(null);
@@ -129,28 +135,22 @@ export default function LancamentosTab({
   const [calcHorasTrabalhadas, setCalcHorasTrabalhadas] = useState<number>(0);
   const [calcRendimento, setCalcRendimento] = useState<number>(0);
 
-  // 2. Initialise operator code & name for active user if they are of OPERADOR profile
+  // 2. Operator is always the logged-in user
   useEffect(() => {
-    if (currentUser.perfil === "OPERADOR") {
-      // Find matching employee by name or email
-      const match = colaboradores.find(c => c.nome.toLowerCase() === currentUser.nome.toLowerCase()) || colaboradores[0];
-      if (match) {
-        setFormData(prev => ({
-          ...prev,
-          operador_codigo: match.registro,
-          operador_nome: match.nome
-        }));
-      }
+    const match = colaboradores.find(c => c.registro === currentUser.codigo) 
+      || colaboradores.find(c => c.nome.toLowerCase() === currentUser.nome.toLowerCase());
+    if (match) {
+      setFormData(prev => ({
+        ...prev,
+        operador_codigo: match.registro,
+        operador_nome: match.nome
+      }));
     } else {
-      // prefill with first operator if any
-      const firstCol = colaboradores[0];
-      if (firstCol) {
-        setFormData(prev => ({
-          ...prev,
-          operador_codigo: firstCol.registro,
-          operador_nome: firstCol.nome
-        }));
-      }
+      setFormData(prev => ({
+        ...prev,
+        operador_codigo: currentUser.codigo || "",
+        operador_nome: currentUser.nome
+      }));
     }
   }, [currentUser, colaboradores]);
 
@@ -423,6 +423,7 @@ export default function LancamentosTab({
     // Validate
     if (!formData.frota) return setValidationError("Favor selecionar a frota do equipamento.");
     if (!formData.up) return setValidationError("Favor selecionar a UP florestal.");
+    if (!formData.atividade) return setValidationError("Favor selecionar a atividade operacional.");
     
     // Rule: Não permitir lançamento posterior a data atual.
     const todayStr = getBrazilDateString();
@@ -470,12 +471,20 @@ export default function LancamentosTab({
       setShowAddForm(false);
       setFormFileBase64(null);
       setFormFileName(null);
+      setUpSearch("");
       setFormData(prev => ({
         ...prev,
+        frota: "",
+        up: "",
         horimetro_final: "",
         horas_sap: "",
+        atividade: "",
         observacao: ""
       }));
+      setCalcEquip("");
+      setCalcFazenda("");
+      setCalcNucleo("");
+      setCalcArea(null);
     } catch (err: any) {
       setValidationError("Erro ao registrar lançamento operacional.");
     }
@@ -853,16 +862,14 @@ export default function LancamentosTab({
                     onChange={(e) => setFormData(prev => ({ ...prev, atividade: e.target.value }))}
                     className="w-full p-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs font-bold text-[#0f172a] focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
                   >
-                    <option value="Corte Mecanizado">Corte Mecanizado (Harvester)</option>
-                    <option value="Baldeio de Madeira">Baldeio de Madeira (Forwarder)</option>
-                    <option value="Derrubada e Traçamento">Derrubada e Traçamento</option>
-                    <option value="Derrubada Mecanizada">Derrubada Mecanizada (Feller Buncher)</option>
-                    <option value="Destocamento">Destocamento</option>
-                    <option value="Preparo de Solo">Preparo de Solo</option>
+                    <option value="">-- Selecione a Atividade --</option>
+                    {atividades.filter(a => a.ativo).map(a => (
+                      <option key={a.id} value={a.nome}>{a.nome}{a.descricao ? ` (${a.descricao})` : ""}</option>
+                    ))}
                   </select>
                 </div>
 
-                {/* Frota selection */}
+                {/* Frota - Lista suspensa */}
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Código da Frota (Equipamento)</label>
                   <select
@@ -873,7 +880,7 @@ export default function LancamentosTab({
                   >
                     <option value="">-- Selecione uma Frota --</option>
                     {equipments.filter(eq => eq.ativo).map(eq => (
-                      <option key={eq.id} value={eq.frota}>{eq.frota} ({eq.tipo.split(" ")[0]})</option>
+                      <option key={eq.id} value={eq.frota}>{eq.frota} — {eq.tipo}</option>
                     ))}
                   </select>
                 </div>
@@ -918,20 +925,35 @@ export default function LancamentosTab({
                   />
                 </div>
 
-                {/* UP Select */}
-                <div>
+                {/* UP Select - Autocomplete */}
+                <div className="relative">
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Unidade de Produção (UP)</label>
-                  <select
+                  <input
+                    type="text"
                     required
-                    value={formData.up}
-                    onChange={(e) => handleUPChange(e.target.value)}
+                    value={upSearch}
+                    onChange={(e) => { setUpSearch(e.target.value); setShowUpSuggestions(true); }}
+                    onFocus={() => setShowUpSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowUpSuggestions(false), 200)}
+                    placeholder="Digite a UP ou fazenda... Ex: T1A001"
                     className="w-full p-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs font-semibold text-[#2563eb] focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
-                  >
-                    <option value="">-- Selecione uma UP --</option>
-                    {forestry.map(f => (
-                      <option key={f.id} value={f.up}>{f.up} (Fazenda: {f.fazenda})</option>
-                    ))}
-                  </select>
+                  />
+                  {showUpSuggestions && upSearch.length > 0 && (
+                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-[#e2e8f0] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).slice(0, 20).map(f => (
+                        <button key={f.id} type="button"
+                          onClick={() => { setUpSearch(f.up); setShowUpSuggestions(false); handleUPChange(f.up); }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-[#eff6ff] border-b border-[#f1f5f9] last:border-0 transition-colors">
+                          <span className="font-semibold text-[#2563eb]">{f.up}</span>
+                          <span className="text-[#64748b] ml-2">{f.fazenda}</span>
+                          <span className="text-[#94a3b8] ml-1">• {f.nucleo} • {f.area} ha</span>
+                        </button>
+                      ))}
+                      {forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).length === 0 && (
+                        <p className="px-3 py-2 text-xs text-[#94a3b8]">Nenhuma UP encontrada</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* UP Calculations Area / Nucleo (Readonly) */}
@@ -945,55 +967,28 @@ export default function LancamentosTab({
                   />
                 </div>
 
-                {/* Operator Details */}
-                {currentUser.perfil === "OPERADOR" ? (
-                  <>
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Código do Operador</label>
-                      <input
-                        type="text"
-                        required
-                        disabled
-                        value={formData.operador_codigo}
-                        className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Nome do Operador</label>
-                      <input
-                        type="text"
-                        required
-                        disabled
-                        value={formData.operador_nome}
-                        className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Operador Responsável (Preenchimento Automático)</label>
-                    <select
-                      required
-                      value={formData.operador_codigo}
-                      onChange={(e) => {
-                        const code = e.target.value;
-                        const match = colaboradores.find(c => c.registro === code);
-                        setFormData(prev => ({
-                          ...prev,
-                          operador_codigo: code,
-                          operador_nome: match ? match.nome : ""
-                        }));
-                      }}
-                      className="w-full p-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs font-bold text-[#2563eb] focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
-                    >
-                      <option value="">-- Selecione o Operador --</option>
-                      {colaboradores.filter(c => c.funcao.toUpperCase().includes("OPERADOR") || c.funcao.toUpperCase().includes("MÁQUINA") || c.funcao.toUpperCase().includes("MAQUINA") || c.funcao.toUpperCase().includes("MOTORISTA")).map(col => (
-                        <option key={col.id} value={col.registro}>{col.registro} - {col.nome} ({col.funcao})</option>
-                      ))}
-                    </select>
-                    <span className="text-[10px] text-[#64748b] font-semibold mt-1 block leading-tight">Ao selecionar o operador, o sistema preenche o código e o nome completo automaticamente.</span>
-                  </div>
-                )}
+                {/* Operador - sempre o usuário logado */}
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Código do Operador</label>
+                  <input
+                    type="text"
+                    required
+                    disabled
+                    value={formData.operador_codigo}
+                    className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Nome do Operador</label>
+                  <input
+                    type="text"
+                    required
+                    disabled
+                    value={formData.operador_nome}
+                    className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none"
+                  />
+                  <span className="text-[10px] text-[#64748b] mt-1 block">Operador vinculado ao login. Não é possível alterar.</span>
+                </div>
 
                 {/* Math values on the fly */}
                 <div className="p-3 bg-[#eff6ff] rounded-lg border border-[#d2ebe0] grid grid-cols-2 text-center items-center col-span-1 sm:col-span-2">
