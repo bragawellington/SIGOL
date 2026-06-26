@@ -430,8 +430,8 @@ Confirmar faturamento oficial?`;
                                   <span className="font-mono bg-[#f8fafc] text-[#2563eb] border border-[#e2e8f0] px-1.5 py-0.5 rounded text-[9px] font-semibold">
                                     {launch.frota}
                                   </span>
-                                  <span className="text-[#0f172a] font-semibold truncate max-w-[140px]" title={launch.equipamento}>
-                                    {launch.equipamento.split(" ")[0]}
+                                  <span className="text-[#0f172a] font-semibold truncate max-w-[140px]" title={launch.equipamento || ""}>
+                                    {(launch.equipamento || launch.frota).split(" ")[0]}
                                   </span>
                                 </div>
                               </td>

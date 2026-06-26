@@ -252,7 +252,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
 
   // B. Worked Hours per Equipment (Bar Chart)
   const hoursPerEquipMap = launches.reduce((acc: { [key: string]: number }, curr) => {
-    const key = `${curr.frota} (${curr.equipamento.split(" ")[0]})`;
+    const key = `${curr.frota} (${(curr.equipamento || "").split(" ")[0] || curr.frota})`;
     acc[key] = Number(((acc[key] || 0) + curr.horas_trabalhadas).toFixed(1));
     return acc;
   }, {});
