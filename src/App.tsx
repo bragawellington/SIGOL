@@ -143,9 +143,9 @@ export default function App() {
           supabase.from('usuarios').select('*'),
           supabase.from('colaboradores').select('*'),
           supabase.from('equipamentos').select('*'),
-          supabase.from('cadastro_florestal').select('*'),
-          supabase.from('lancamentos').select('*').order('data', { ascending: false }),
-          supabase.from('auditoria').select('*').order('data_hora', { ascending: false }),
+          supabase.from('cadastro_florestal').select('*').range(0, 9999),
+          supabase.from('lancamentos').select('*').order('data', { ascending: false }).range(0, 9999),
+          supabase.from('auditoria').select('*').order('data_hora', { ascending: false }).range(0, 999),
           supabase.from('atividades').select('*').order('nome', { ascending: true })
         ]);
         if (resUsers.data) setUsers(resUsers.data);
@@ -179,8 +179,11 @@ export default function App() {
   }, [currentUser, activeTab]);
 
   // ── CRUD Handlers ──
+  const isReadOnly = currentUser?.perfil === "GERÊNCIA";
+  const blockReadOnly = () => { alert("Perfil GERÊNCIA: acesso somente leitura."); };
+
   const handleAddLaunch = async (newLaunch: Omit<Lancamento, "id" | "criado_por" | "criado_em" | "status" | "aprovado_por" | "aprovado_em" | "faturado_por" | "faturado_em" | "rendimento" | "horas_trabalhadas" | "equipamento" | "fazenda" | "nucleo" | "area_up">) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: operação simulada com sucesso."); await loadAllData(); return; }
     if (supabase) {
       const { error } = await supabase.from('lancamentos').insert({ ...newLaunch, criado_por: currentUser.email, status: "PENDENTE" });
@@ -190,7 +193,7 @@ export default function App() {
   };
 
   const handleUpdateLaunchStatus = async (id: string, status: "PENDENTE" | "APROVADO" | "DEVOLVIDO" | "FATURADO", obs?: string, rate?: number, horas_sap?: number, otherFields?: Partial<Lancamento>) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { setLaunches(prev => prev.map(l => l.id === id ? { ...l, status, observacao: obs || l.observacao, ...otherFields } : l)); return; }
     if (supabase) {
       const updates: any = { status };
@@ -207,7 +210,7 @@ export default function App() {
   };
 
   const handleBulkBill = async (ids: string[], rateOverride?: number) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { setLaunches(prev => prev.map(l => ids.includes(l.id) ? { ...l, status: "FATURADO" as const, faturado_por: currentUser!.email, faturado_em: new Date().toISOString() } : l)); return; }
     if (supabase) {
       for (const id of ids) {
@@ -218,67 +221,67 @@ export default function App() {
   };
 
   const handleAddEquipment = async (newEq: Omit<Equipamento, "id" | "horas_acumuladas" | "valor_produzido" | "utilizacao_mensal">) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
     if (supabase) { const { error } = await supabase.from('equipamentos').insert(newEq); if (error) { alert("Falha ao adicionar equipamento."); throw error; } await loadAllData(); }
   };
 
   const handleAddForest = async (newForest: Omit<CadastroFlorestal, "id">) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
     if (supabase) { const { error } = await supabase.from('cadastro_florestal').insert(newForest); if (error) { alert("Falha ao adicionar UP."); throw error; } await loadAllData(); }
   };
 
   const handleImportForestList = async (list: Omit<CadastroFlorestal, "id">[]) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: importação simulada."); return; }
     if (supabase) { const { error } = await supabase.from('cadastro_florestal').insert(list); if (error) { alert("Falha na importação."); throw error; } await loadAllData(); }
   };
 
   const handleAddColaborador = async (col: Omit<Colaborador, "id">) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
     if (supabase) { const { error } = await supabase.from('colaboradores').insert(col); if (error) { alert("Falha ao adicionar colaborador."); throw error; } await loadAllData(); }
   };
 
   const handleImportColaboradorList = async (list: Omit<Colaborador, "id">[]) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: importação simulada."); return; }
     if (supabase) { const { error } = await supabase.from('colaboradores').insert(list); if (error) { alert("Falha na importação."); throw error; } await loadAllData(); }
   };
 
   const handleImportLaunchList = async (list: any[]) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: importação simulada."); return; }
     if (supabase) { const { error } = await supabase.from('lancamentos').insert(list.map(l => ({ ...l, criado_por: currentUser!.email, status: "PENDENTE" }))); if (error) { alert("Falha na importação."); throw error; } await loadAllData(); }
   };
 
   const handleClearAuditLogs = async () => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { setAuditLogs([]); return; }
     if (supabase) { await supabase.from('auditoria').delete().neq('id', ''); await loadAllData(); }
   };
 
   const handleAddUser = async (newUser: Omit<User, "id" | "created_at">) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: operação simulada."); return; }
     if (supabase) { const { error } = await supabase.from('usuarios').insert(newUser); if (error) { alert("Falha ao registrar usuário."); throw error; } await loadAllData(); }
   };
 
   const handleAddAtividade = async (atv: Omit<Atividade, "id">) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { setAtividades(prev => [...prev, { ...atv, id: `atv_${Date.now()}` }]); return; }
     if (supabase) { const { error } = await supabase.from('atividades').insert(atv); if (error) { alert("Falha ao cadastrar atividade."); throw error; } await loadAllData(); }
   };
 
   const handleUpdateAtividade = async (id: string, updates: Partial<Atividade>) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { setAtividades(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a)); return; }
     if (supabase) { const { error } = await supabase.from('atividades').update(updates).eq('id', id); if (error) { alert("Falha ao atualizar."); } await loadAllData(); }
   };
 
   const handleDeleteAtividade = async (id: string) => {
-    if (!currentUser) return;
+    if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { setAtividades(prev => prev.filter(a => a.id !== id)); return; }
     if (supabase) { const { error } = await supabase.from('atividades').delete().eq('id', id); if (error) { alert("Falha ao excluir."); } await loadAllData(); }
   };
