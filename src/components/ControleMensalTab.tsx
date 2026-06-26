@@ -12,21 +12,48 @@ interface ControleMensalTabProps {
 export default function ControleMensalTab({ launches, colaboradores, equipments }: ControleMensalTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<"COLABORADORES" | "EQUIPAMENTOS">("COLABORADORES");
 
-  // 1. Generate the operational days: 21st May to 20th June (relative to current year 2026)
+  // 1. Dynamic competência based on current date
+  const today = new Date();
+  const currentDay = today.getDate();
+  // If today >= 21, competência starts this month's 21st; otherwise last month's 21st
+  const getInitialCompetencia = () => {
+    if (currentDay >= 21) {
+      return { year: today.getFullYear(), month: today.getMonth() }; // starts 21st of this month
+    } else {
+      const prev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      return { year: prev.getFullYear(), month: prev.getMonth() }; // starts 21st of previous month
+    }
+  };
+
+  const [competencia, setCompetencia] = useState(getInitialCompetencia);
+
   const generateOperationalDates = () => {
     const dates: string[] = [];
-    const year = 2026;
-    
-    // May 21st to May 31st
-    for (let d = 21; d <= 31; d++) {
-      dates.push(`${year}-05-${String(d).padStart(2, "0")}`);
-    }
-    // June 1st to June 20th
-    for (let d = 1; d <= 20; d++) {
-      dates.push(`${year}-06-${String(d).padStart(2, "0")}`);
+    const startDate = new Date(competencia.year, competencia.month, 21);
+    const endDate = new Date(competencia.year, competencia.month + 1, 20);
+
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, "0");
+      const d = String(current.getDate()).padStart(2, "0");
+      dates.push(`${y}-${m}-${d}`);
+      current.setDate(current.getDate() + 1);
     }
     return dates;
   };
+
+  const navigateCompetencia = (dir: -1 | 1) => {
+    setCompetencia(prev => {
+      const d = new Date(prev.year, prev.month + dir, 1);
+      return { year: d.getFullYear(), month: d.getMonth() };
+    });
+  };
+
+  const monthNames = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+  const compStart = new Date(competencia.year, competencia.month, 21);
+  const compEnd = new Date(competencia.year, competencia.month + 1, 20);
+  const competenciaLabel = `${compStart.getDate()}/${monthNames[compStart.getMonth()]} → ${compEnd.getDate()}/${monthNames[compEnd.getMonth()]} ${compEnd.getFullYear()}`;
 
   const periodDays = generateOperationalDates();
   const metaPadrao = 180; // Standard 180h quota
@@ -119,11 +146,12 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
       {/* Standard parameters KPI */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans">
         <div className="flex items-center space-x-3 p-4 bg-[#eff6ff] border border-[#d2ebe0] rounded-lg">
-          <CalendarDays className="w-5 h-5 text-[#2563eb]" />
-          <div className="text-xs">
-            <span className="font-semibold text-[#0f172a] block">Período Fiscal Corrente</span>
-            <span className="text-[#64748b] font-medium">De 21/05/2026 até 20/06/2026</span>
+          <button onClick={() => navigateCompetencia(-1)} className="p-1 hover:bg-white rounded transition-colors"><ChevronLeft className="w-4 h-4 text-[#2563eb]" /></button>
+          <div className="text-xs flex-1 text-center">
+            <span className="font-semibold text-[#0f172a] block">Competência Operacional</span>
+            <span className="text-[#2563eb] font-bold">{competenciaLabel}</span>
           </div>
+          <button onClick={() => navigateCompetencia(1)} className="p-1 hover:bg-white rounded transition-colors"><ChevronRight className="w-4 h-4 text-[#2563eb]" /></button>
         </div>
         <div className="flex items-center space-x-3 p-4 bg-blue-50/60 border border-blue-100 rounded-lg">
           <Award className="w-5 h-5 text-blue-700" />
@@ -163,9 +191,9 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                   <th className="p-3 sticky left-0 bg-[#f8fafc] border-r border-[#e2e8f0] z-10 w-44 font-bold">Colaborador</th>
                   {periodDays.map(date => {
                     const day = date.split("-")[2];
-                    const month = date.split("-")[1] === "05" ? "mai" : "jun";
+                    const monthIdx = parseInt(date.split("-")[1]) - 1; const month = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][monthIdx];
                     return (
-                      <th key={date} className="px-1.5 py-3 text-center border-r border-[#e2e8f0]/50 min-w-[34px]" title={`Data: ${day}/${date.split("-")[1]}/2026`}>
+                      <th key={date} className="px-1.5 py-3 text-center border-r border-[#e2e8f0]/50 min-w-[34px]" title={date}>
                         <span className="block font-semibold">{day}</span>
                         <span className="block text-[8px] font-bold text-[#64748b]/80">{month}</span>
                       </th>
@@ -239,9 +267,9 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                   <th className="p-3 sticky left-0 bg-[#f8fafc] border-r border-[#e2e8f0] z-10 w-44 font-bold">Equipamento / Frota</th>
                   {periodDays.map(date => {
                     const day = date.split("-")[2];
-                    const month = date.split("-")[1] === "05" ? "mai" : "jun";
+                    const monthIdx = parseInt(date.split("-")[1]) - 1; const month = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][monthIdx];
                     return (
-                      <th key={date} className="px-1.5 py-3 text-center border-r border-[#e2e8f0]/50 min-w-[34px]" title={`Data: ${day}/${date.split("-")[1]}/2026`}>
+                      <th key={date} className="px-1.5 py-3 text-center border-r border-[#e2e8f0]/50 min-w-[34px]" title={date}>
                         <span className="block font-semibold">{day}</span>
                         <span className="block text-[8px] font-bold text-[#64748b]/80">{month}</span>
                       </th>

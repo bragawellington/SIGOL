@@ -186,7 +186,8 @@ export default function App() {
     if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { alert("Modo demonstração: operação simulada com sucesso."); await loadAllData(); return; }
     if (supabase) {
-      const { error } = await supabase.from('lancamentos').insert({ ...newLaunch, criado_por: currentUser.email, status: "PENDENTE" });
+      const { horas_trabalhadas, ...insertData } = newLaunch as any;
+      const { error } = await supabase.from('lancamentos').insert({ ...insertData, criado_por: currentUser.email, status: "PENDENTE" });
       if (error) { alert("Falha ao criar lançamento."); throw error; }
       await loadAllData();
     }

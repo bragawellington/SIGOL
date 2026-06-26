@@ -478,16 +478,22 @@ export default function LancamentosTab({
         data: formData.data,
         frota: formData.frota,
         up: formData.up,
+        equipamento: calcEquip || formData.frota,
+        fazenda: calcFazenda || "",
+        nucleo: calcNucleo || "",
+        area_up: calcArea || 0,
         horimetro_inicial: hInit,
         horimetro_final: hEnd,
-        horas_sap: workedHours, // horas sap e horas trabalhadas são o mesmo valor
+        horas_trabalhadas: workedHours,
+        horas_sap: workedHours,
+        rendimento: calcArea && calcArea > 0 ? Number((workedHours / calcArea).toFixed(4)) : 0,
         atividade: formData.atividade,
         operador_codigo: formData.operador_codigo,
         operador_nome: formData.operador_nome,
         observacao: formData.observacao,
         anexo: formFileBase64 || undefined,
         anexo_nome: formFileName || undefined
-      });
+      } as any);
 
       // Clear states & close
       setShowAddForm(false);
@@ -1582,19 +1588,19 @@ export default function LancamentosTab({
               </div>
               <div className="bg-[#f8fafc] p-2.5 rounded border border-[#e2e8f0]/40">
                 <strong className="block text-[#64748b] text-[9px] uppercase font-bold tracking-wider">Rendimento Calculado</strong>
-                <span className="text-[#2563eb] font-semibold">{selectedLaunch.rendimento} horas / hectare da UP</span>
+                <span className="text-[#2563eb] font-semibold">{selectedLaunch.rendimento ? `${selectedLaunch.rendimento} h/ha` : "Não calculado"}</span>
               </div>
             </div>
 
             <div className="bg-[#eff6ff]/60 border border-[#d2ebe0] p-3 rounded text-xs space-y-1">
               <strong className="block text-[#2563eb] text-[9px] uppercase font-semibold tracking-wider">Histórico do Boletim</strong>
               <div className="text-[#64748b] text-[10.5px] space-y-1 font-semibold leading-relaxed">
-                <p>Criado por: <span className="text-[#0f172a] font-semibold">{selectedLaunch.criado_por}</span> em {new Date(selectedLaunch.criado_em).toLocaleString("pt-BR")}</p>
+                <p>Criado por: <span className="text-[#0f172a] font-semibold">{selectedLaunch.operador_nome} ({selectedLaunch.operador_codigo})</span> em {new Date(selectedLaunch.criado_em).toLocaleString("pt-BR")}</p>
                 {selectedLaunch.aprovado_por && (
-                  <p>Aprovador Técnico: <span className="text-[#0f172a] font-semibold">{selectedLaunch.aprovado_por}</span> em {new Date(selectedLaunch.aprovado_em!).toLocaleString("pt-BR")}</p>
+                  <p>Aprovado por: <span className="text-[#0f172a] font-semibold">{colaboradores.find(c => c.registro === selectedLaunch.aprovado_por)?.nome || selectedLaunch.aprovado_por}</span> em {new Date(selectedLaunch.aprovado_em!).toLocaleString("pt-BR")}</p>
                 )}
                 {selectedLaunch.faturado_por && (
-                  <p>Faturador Oficial: <span className="text-[#0f172a] font-semibold">{selectedLaunch.faturado_por}</span> em {new Date(selectedLaunch.faturado_em!).toLocaleString("pt-BR")}</p>
+                  <p>Faturado por: <span className="text-[#0f172a] font-semibold">{colaboradores.find(c => c.registro === selectedLaunch.faturado_por)?.nome || selectedLaunch.faturado_por}</span> em {new Date(selectedLaunch.faturado_em!).toLocaleString("pt-BR")}</p>
                 )}
               </div>
             </div>
