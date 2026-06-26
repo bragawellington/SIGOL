@@ -25,6 +25,9 @@ export default function CadastroFlorestalTab({
   const [isDragging, setIsDragging] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [searchCF, setSearchCF] = useState("");
+  const [pageCF, setPageCF] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Form states
   const [formData, setFormData] = useState({
@@ -289,6 +292,22 @@ export default function CadastroFlorestalTab({
             Unidades de Produção Cadastradas ({forestry.length})
           </div>
           <div className="overflow-x-auto">
+            {/* Search */}
+            <div className="p-3 border-b border-[#e2e8f0]">
+              <input type="text" placeholder="Buscar por UP, Fazenda ou Núcleo..." value={searchCF}
+                onChange={(e) => { setSearchCF(e.target.value); setPageCF(1); }}
+                className="w-full sm:w-80 px-3 py-1.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] focus:outline-none" />
+            </div>
+            {(() => {
+              const filtered = forestry.filter(f =>
+                !searchCF || f.up.toLowerCase().includes(searchCF.toLowerCase()) ||
+                f.fazenda.toLowerCase().includes(searchCF.toLowerCase()) ||
+                f.nucleo.toLowerCase().includes(searchCF.toLowerCase())
+              );
+              const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+              const paged = filtered.slice((pageCF - 1) * PAGE_SIZE, pageCF * PAGE_SIZE);
+              return (
+                <>
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[#2563eb] font-semibold uppercase tracking-wider">
@@ -299,7 +318,7 @@ export default function CadastroFlorestalTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2ece6]/55">
-                {forestry.map(f => (
+                {paged.map(f => (
                   <tr key={f.id} className="hover:bg-[#f8fafc]/45 transition-colors">
                     <td className="p-3 font-semibold text-[#0f172a]">{f.up}</td>
                     <td className="p-3 font-semibold text-[#64748b]">{f.fazenda}</td>
@@ -313,6 +332,20 @@ export default function CadastroFlorestalTab({
                 ))}
               </tbody>
             </table>
+            {/* Pagination */}
+            <div className="flex items-center justify-between p-3 border-t border-[#e2e8f0] text-xs text-[#64748b]">
+              <span>{filtered.length} registros{searchCF && ` (filtrados de ${forestry.length})`}</span>
+              <div className="flex items-center gap-2">
+                <button disabled={pageCF <= 1} onClick={() => setPageCF(p => p - 1)}
+                  className="px-2 py-1 border border-[#e2e8f0] rounded hover:bg-[#f8fafc] disabled:opacity-40">← Anterior</button>
+                <span className="font-medium">{pageCF} / {totalPages || 1}</span>
+                <button disabled={pageCF >= totalPages} onClick={() => setPageCF(p => p + 1)}
+                  className="px-2 py-1 border border-[#e2e8f0] rounded hover:bg-[#f8fafc] disabled:opacity-40">Próxima →</button>
+              </div>
+            </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

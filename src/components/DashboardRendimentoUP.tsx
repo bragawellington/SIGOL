@@ -48,9 +48,20 @@ export default function DashboardRendimentoUP({
   const nucleos = ["TODOS", ...Array.from(new Set(forestry.map(f => f.nucleo)))].filter(Boolean);
   const fazendas = ["TODOS", ...Array.from(new Set(forestry.map(f => f.fazenda)))].filter(Boolean);
 
-  // 3. Compute yield per UP
-  const upYieldsData = forestry.map(upItem => {
-    const upLaunches = launches.filter(l => l.up === upItem.up);
+  // 3. Build launches index by UP (O(n) instead of O(n*m))
+  const launchesByUp = new Map<string, Lancamento[]>();
+  for (const l of launches) {
+    const arr = launchesByUp.get(l.up) || [];
+    arr.push(l);
+    launchesByUp.set(l.up, arr);
+  }
+
+  // Only process UPs that have launches (skip 6900+ empty UPs)
+  const upsWithLaunches = new Set(launchesByUp.keys());
+  const relevantForestry = forestry.filter(f => upsWithLaunches.has(f.up));
+
+  const upYieldsData = relevantForestry.map(upItem => {
+    const upLaunches = launchesByUp.get(upItem.up) || [];
     
     const totalHorasTrabalhadas = upLaunches.reduce((sum, curr) => sum + curr.horas_trabalhadas, 0);
     const totalHorasSap = upLaunches.reduce((sum, curr) => sum + curr.horas_sap, 0);

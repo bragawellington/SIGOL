@@ -674,8 +674,8 @@ export default function LancamentosTab({
             className="w-full px-3 py-1.5 bg-[#f8fafc]/50 border border-[#e2e8f0] rounded-lg text-xs focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] focus:bg-white text-[#0f172a] focus:outline-hidden font-medium"
           >
             <option value="ALL">Todas as UPs</option>
-            {forestry.map(f => (
-              <option key={f.id} value={f.up}>{f.up} ({f.fazenda})</option>
+            {Array.from(new Set(launches.map(l => l.up))).sort().map(up => (
+              <option key={up} value={up}>{up}</option>
             ))}
           </select>
 
@@ -879,7 +879,7 @@ export default function LancamentosTab({
                     className="w-full p-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs font-semibold text-[#2563eb] focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
                   >
                     <option value="">-- Selecione uma Frota --</option>
-                    {equipments.filter(eq => eq.ativo).map(eq => (
+                    {equipments.filter(eq => eq.ativo).sort((a, b) => a.frota.localeCompare(b.frota)).map(eq => (
                       <option key={eq.id} value={eq.frota}>{eq.frota} — {eq.tipo}</option>
                     ))}
                   </select>
@@ -938,9 +938,9 @@ export default function LancamentosTab({
                     placeholder="Digite a UP ou fazenda... Ex: T1A001"
                     className="w-full p-2 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs font-semibold text-[#2563eb] focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
                   />
-                  {showUpSuggestions && upSearch.length > 0 && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-[#e2e8f0] rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).slice(0, 20).map(f => (
+                  {showUpSuggestions && upSearch.length >= 2 && (
+                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-[#e2e8f0] rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).slice(0, 100).map(f => (
                         <button key={f.id} type="button"
                           onClick={() => { setUpSearch(f.up); setShowUpSuggestions(false); handleUPChange(f.up); }}
                           className="w-full text-left px-3 py-2 text-xs hover:bg-[#eff6ff] border-b border-[#f1f5f9] last:border-0 transition-colors">
@@ -949,7 +949,7 @@ export default function LancamentosTab({
                           <span className="text-[#94a3b8] ml-1">• {f.nucleo} • {f.area} ha</span>
                         </button>
                       ))}
-                      {forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).length === 0 && (
+                      {upSearch.length >= 2 && forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).length === 0 && (
                         <p className="px-3 py-2 text-xs text-[#94a3b8]">Nenhuma UP encontrada</p>
                       )}
                     </div>
