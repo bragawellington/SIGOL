@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Lancamento, Equipamento, CadastroFlorestal, Colaborador, User, Atividade } from "../types";
 import { formatCurrency, formatDecimal, formatDateBR, exportToCSV } from "../utils";
+import { supabase, isDemo } from "../lib/supabase";
 
 interface LancamentosTabProps {
   launches: Lancamento[];
@@ -67,6 +68,27 @@ export default function LancamentosTab({
   // Autocomplete search states (UP only)
   const [upSearch, setUpSearch] = useState("");
   const [showUpSuggestions, setShowUpSuggestions] = useState(false);
+  const [upResults, setUpResults] = useState<CadastroFlorestal[]>([]);
+  const [upSearching, setUpSearching] = useState(false);
+
+  // Debounced UP search via Supabase RPC or in-memory
+  useEffect(() => {
+    if (upSearch.length < 2) { setUpResults([]); return; }
+    const timer = setTimeout(async () => {
+      setUpSearching(true);
+      if (!isDemo && supabase) {
+        const { data } = await supabase.rpc('buscar_up', { termo: upSearch });
+        setUpResults(data || []);
+      } else {
+        const q = upSearch.toLowerCase();
+        setUpResults(forestry.filter(f =>
+          f.up.toLowerCase().includes(q) || f.fazenda.toLowerCase().includes(q) || f.nucleo.toLowerCase().includes(q)
+        ).slice(0, 50));
+      }
+      setUpSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [upSearch]);
 
   // Editing general items states (for Faturamento and Gerência)
   const [editingLaunch, setEditingLaunch] = useState<Lancamento | null>(null);
@@ -940,7 +962,8 @@ export default function LancamentosTab({
                   />
                   {showUpSuggestions && upSearch.length >= 2 && (
                     <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-[#e2e8f0] rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).slice(0, 100).map(f => (
+                      {upSearching && <p className="px-3 py-2 text-xs text-[#94a3b8]">Buscando...</p>}
+                      {!upSearching && upResults.map(f => (
                         <button key={f.id} type="button"
                           onClick={() => { setUpSearch(f.up); setShowUpSuggestions(false); handleUPChange(f.up); }}
                           className="w-full text-left px-3 py-2 text-xs hover:bg-[#eff6ff] border-b border-[#f1f5f9] last:border-0 transition-colors">
@@ -949,7 +972,7 @@ export default function LancamentosTab({
                           <span className="text-[#94a3b8] ml-1">• {f.nucleo} • {f.area} ha</span>
                         </button>
                       ))}
-                      {upSearch.length >= 2 && forestry.filter(f => f.up.toLowerCase().includes(upSearch.toLowerCase()) || f.fazenda.toLowerCase().includes(upSearch.toLowerCase()) || f.nucleo.toLowerCase().includes(upSearch.toLowerCase())).length === 0 && (
+                      {!upSearching && upResults.length === 0 && upSearch.length >= 2 && (
                         <p className="px-3 py-2 text-xs text-[#94a3b8]">Nenhuma UP encontrada</p>
                       )}
                     </div>
