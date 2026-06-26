@@ -965,7 +965,14 @@ export default function LancamentosTab({
                       {upSearching && <p className="px-3 py-2 text-xs text-[#94a3b8]">Buscando...</p>}
                       {!upSearching && upResults.map(f => (
                         <button key={f.id} type="button"
-                          onClick={() => { setUpSearch(f.up); setShowUpSuggestions(false); handleUPChange(f.up); }}
+                          onClick={() => {
+                            setUpSearch(f.up);
+                            setShowUpSuggestions(false);
+                            setCalcFazenda(f.fazenda);
+                            setCalcNucleo(f.nucleo);
+                            setCalcArea(f.area);
+                            setFormData(prev => ({ ...prev, up: f.up }));
+                          }}
                           className="w-full text-left px-3 py-2 text-xs hover:bg-[#eff6ff] border-b border-[#f1f5f9] last:border-0 transition-colors">
                           <span className="font-semibold text-[#2563eb]">{f.up}</span>
                           <span className="text-[#64748b] ml-2">{f.fazenda}</span>
