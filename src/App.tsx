@@ -700,7 +700,10 @@ export default function App() {
               {activeTab === "auditoria" && <AuditoriaTab logs={auditLogs} currentUser={currentUser} onClearLogs={handleClearAuditLogs} />}
               {activeTab === "usuarios" && <GestaoUsuariosTab users={users} currentUser={currentUser} onSelectUser={() => {}} onAddUser={handleAddUser} onResetPassword={handleResetPassword} />}
               {activeTab === "atividades" && <AtividadesTab atividades={atividades} currentUser={currentUser} onAddAtividade={handleAddAtividade} onUpdateAtividade={handleUpdateAtividade} onDeleteAtividade={handleDeleteAtividade} />}
-              {activeTab === "alterar-senha" && <AlterarSenhaTab currentUser={currentUser} onSuccess={() => loadAllData()} />}
+              {activeTab === "alterar-senha" && <AlterarSenhaTab currentUser={currentUser} onSuccess={async () => {
+                await loadAllData();
+                setCurrentUser(prev => prev ? { ...prev, senha_alterada: true } : prev);
+              }} />}
             </div>
           )}
         </main>
