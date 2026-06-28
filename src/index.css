@@ -59,7 +59,17 @@ body {
 
 /* Print */
 @media print {
-  header, aside, nav, button, select, input, .no-print { display: none !important; }
-  main { padding: 0 !important; }
-  body { background: white !important; }
+  body { background: white !important; margin: 0 !important; padding: 0 !important; }
+  body > div > div > header,
+  body > div > div > aside,
+  body > div > div > main,
+  .no-print { display: none !important; }
+  
+  @page { size: A4 portrait; margin: 0; }
+  
+  .print\:bg-white { background: white !important; }
+  .print\:static { position: static !important; }
+  .print\:shadow-none { box-shadow: none !important; }
+  .print\:my-0 { margin-top: 0 !important; margin-bottom: 0 !important; }
+  .print\:hidden { display: none !important; }
 }
