@@ -5,9 +5,10 @@ import { supabase, isDemo } from "../lib/supabase";
 
 interface AlterarSenhaTabProps {
   currentUser: User;
+  onSuccess?: () => void;
 }
 
-export default function AlterarSenhaTab({ currentUser }: AlterarSenhaTabProps) {
+export default function AlterarSenhaTab({ currentUser, onSuccess }: AlterarSenhaTabProps) {
   const [senhaAtual, setSenhaAtual] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
@@ -38,7 +39,7 @@ export default function AlterarSenhaTab({ currentUser }: AlterarSenhaTabProps) {
           setLoading(false);
           return;
         }
-        setSuccess(true);
+        setSuccess(true); onSuccess?.();
         setSenhaAtual(""); setNovaSenha(""); setConfirmarSenha("");
       } else {
         // Supabase - verify current password then update
@@ -61,7 +62,7 @@ export default function AlterarSenhaTab({ currentUser }: AlterarSenhaTabProps) {
           return;
         }
 
-        setSuccess(true);
+        setSuccess(true); onSuccess?.();
         setSenhaAtual(""); setNovaSenha(""); setConfirmarSenha("");
       }
     } catch {

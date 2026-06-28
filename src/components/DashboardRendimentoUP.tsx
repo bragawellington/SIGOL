@@ -48,36 +48,36 @@ export default function DashboardRendimentoUP({
   const nucleos = ["TODOS", ...Array.from(new Set(forestry.map(f => f.nucleo)))].filter(Boolean);
   const fazendas = ["TODOS", ...Array.from(new Set(forestry.map(f => f.fazenda)))].filter(Boolean);
 
-  // 3. Build launches index by UP (O(n) instead of O(n*m))
+  // 3. Build UP data from launches + forestry fallback
   const launchesByUp = new Map<string, Lancamento[]>();
   for (const l of launches) {
+    if (!l.up) continue;
     const arr = launchesByUp.get(l.up) || [];
     arr.push(l);
     launchesByUp.set(l.up, arr);
   }
 
-  // Only process UPs that have launches (skip 6900+ empty UPs)
-  const upsWithLaunches = new Set(launchesByUp.keys());
-  const relevantForestry = forestry.filter(f => upsWithLaunches.has(f.up));
+  // Index forestry by UP for fast lookup
+  const forestryByUp = new Map<string, CadastroFlorestal>();
+  for (const f of forestry) { forestryByUp.set(f.up, f); }
 
-  const upYieldsData = relevantForestry.map(upItem => {
-    const upLaunches = launchesByUp.get(upItem.up) || [];
-    
+  const upYieldsData = Array.from(launchesByUp.entries()).map(([upCode, upLaunches]) => {
+    const forestMatch = forestryByUp.get(upCode);
+    const ref = upLaunches[0];
+    const area = forestMatch?.area || ref?.area_up || 0;
+    const fazenda = forestMatch?.fazenda || ref?.fazenda || "";
+    const nucleo = forestMatch?.nucleo || ref?.nucleo || "";
+
     const totalHorasTrabalhadas = upLaunches.reduce((sum, curr) => sum + curr.horas_trabalhadas, 0);
     const totalHorasSap = upLaunches.reduce((sum, curr) => sum + curr.horas_sap, 0);
-    
-    // Choose selected metric for the primary division
+
     const totalHoras = hourMetric === "horas_trabalhadas" ? totalHorasTrabalhadas : totalHorasSap;
-    
-    // Rendimento = Area / Total Horas (Hectares per hour - productivity)
-    // expressed as ha/hour
-    const rendimento = totalHoras > 0 ? Number((upItem.area / totalHoras).toFixed(4)) : 0;
-    
-    // Revenue calculations for faturamento tracking
+    const rendimento = totalHoras > 0 && area > 0 ? Number((area / totalHoras).toFixed(4)) : 0;
+
     const faturamentoRealizado = upLaunches
       .filter(l => l.status === "FATURADO")
       .reduce((sum, curr) => sum + (curr.valor_total_faturamento || 0), 0);
-      
+
     const faturamentoAprovado = upLaunches
       .filter(l => l.status === "APROVADO")
       .reduce((sum, curr) => sum + ((curr.horas_sap * (curr.valor_hora_faturamento || 150)) || 0), 0);
@@ -85,11 +85,11 @@ export default function DashboardRendimentoUP({
     const totalPipeline = faturamentoRealizado + faturamentoAprovado;
 
     return {
-      id: upItem.id,
-      up: upItem.up,
-      fazenda: upItem.fazenda,
-      nucleo: upItem.nucleo,
-      area: upItem.area,
+      id: upCode,
+      up: upCode,
+      fazenda,
+      nucleo,
+      area,
       totalHorasTrabalhadas,
       totalHorasSap,
       rendimento,
@@ -103,8 +103,8 @@ export default function DashboardRendimentoUP({
 
   // Filter UPs based on search and dropdown filters
   const filteredUpYields = upYieldsData.filter(item => {
-    const matchesSearch = item.up.toLowerCase().includes(upSearch.toLowerCase()) || 
-                          item.fazenda.toLowerCase().includes(upSearch.toLowerCase());
+    const matchesSearch = !upSearch || item.up.toLowerCase().includes(upSearch.toLowerCase()) || 
+                          (item.fazenda || "").toLowerCase().includes(upSearch.toLowerCase());
     const matchesNucleo = selectedNucleo === "TODOS" || item.nucleo === selectedNucleo;
     const matchesFazenda = selectedFazenda === "TODOS" || item.fazenda === selectedFazenda;
     

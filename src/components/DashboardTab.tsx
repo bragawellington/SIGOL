@@ -21,6 +21,7 @@ interface DashboardTabProps {
 
 export default function DashboardTab({ launches, equipments, currentUser, forestry }: DashboardTabProps) {
   const hasFinancialAccess = currentUser.perfil === "FATURAMENTO" || currentUser.perfil === "GERÊNCIA";
+  const canApprove = currentUser.perfil === "TÉCNICO" || hasFinancialAccess;
   
   // Tab Switch for financial-privileged users or coordinators
   const [activeSubTab, setActiveSubTab] = useState<"executivo" | "operacao" | "financeiro" | "coordenador" | "rendimento-up">("executivo");
@@ -32,39 +33,66 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
     return eq ? eq.valor_hora : 0;
   };
 
-  // 1. Core General Calculations
-  const totalLaunches = launches.length;
-  const pendingLaunches = launches.filter(l => l.status === "PENDENTE").length;
-  const approvedLaunches = launches.filter(l => l.status === "APROVADO").length;
-  const billedLaunches = launches.filter(l => l.status === "FATURADO").length;
-  const returnedLaunches = launches.filter(l => l.status === "DEVOLVIDO").length;
+  // Competência calculation (21st to 20th)
+  const today = new Date();
+  const compDay = today.getDate();
+  const compStart = compDay >= 21
+    ? new Date(today.getFullYear(), today.getMonth(), 21)
+    : new Date(today.getFullYear(), today.getMonth() - 1, 21);
+  const compEnd = compDay >= 21
+    ? new Date(today.getFullYear(), today.getMonth() + 1, 20)
+    : new Date(today.getFullYear(), today.getMonth(), 20);
   
-  const totalHoursWork = Number(launches.reduce((sum, curr) => sum + curr.horas_trabalhadas, 0).toFixed(1));
-  const totalHoursSap = Number(launches.reduce((sum, curr) => sum + curr.horas_sap, 0).toFixed(1));
+  const compStartStr = `${compStart.getFullYear()}-${String(compStart.getMonth() + 1).padStart(2, "0")}-${String(compStart.getDate()).padStart(2, "0")}`;
+  const compEndStr = `${compEnd.getFullYear()}-${String(compEnd.getMonth() + 1).padStart(2, "0")}-${String(compEnd.getDate()).padStart(2, "0")}`;
+  
+  // Filter launches by current competência
+  const compLaunches = launches.filter(l => l.data >= compStartStr && l.data <= compEndStr);
+
+  // Previous competência for comparison
+  const prevStart = new Date(compStart.getFullYear(), compStart.getMonth() - 1, 21);
+  const prevEnd = new Date(compEnd.getFullYear(), compEnd.getMonth() - 1, 20);
+  const prevStartStr = `${prevStart.getFullYear()}-${String(prevStart.getMonth() + 1).padStart(2, "0")}-${String(prevStart.getDate()).padStart(2, "0")}`;
+  const prevEndStr = `${prevEnd.getFullYear()}-${String(prevEnd.getMonth() + 1).padStart(2, "0")}-${String(prevEnd.getDate()).padStart(2, "0")}`;
+  const prevLaunches = launches.filter(l => l.data >= prevStartStr && l.data <= prevEndStr);
+
+  // 1. Core General Calculations (filtered by competência)
+  const totalLaunches = compLaunches.length;
+  const pendingLaunches = compLaunches.filter(l => l.status === "PENDENTE").length;
+  const approvedLaunches = compLaunches.filter(l => l.status === "APROVADO").length;
+  const billedLaunches = compLaunches.filter(l => l.status === "FATURADO").length;
+  const returnedLaunches = compLaunches.filter(l => l.status === "DEVOLVIDO").length;
+  
+  const totalHoursWork = Number(compLaunches.reduce((sum, curr) => sum + curr.horas_trabalhadas, 0).toFixed(1));
+  const totalHoursSap = Number(compLaunches.reduce((sum, curr) => sum + curr.horas_sap, 0).toFixed(1));
+
+  // Previous competência totals for comparison
+  const prevTotalLaunches = prevLaunches.length;
+  const prevTotalHours = Number(prevLaunches.reduce((sum, curr) => sum + curr.horas_trabalhadas, 0).toFixed(1));
   
   // Financial pipeline calculations (Estimated or Realized BRL)
-  const totalBilledVal = Number(launches.reduce((sum, curr) => {
+  const totalBilledVal = Number(compLaunches.reduce((sum, curr) => {
     if (curr.status === "FATURADO") {
       return sum + (curr.valor_total_faturamento || (curr.horas_sap * getRate(curr.frota)));
     }
     return sum;
   }, 0).toFixed(2));
 
-  const approvedNotBilledVal = Number(launches.reduce((sum, curr) => {
+  const approvedNotBilledVal = Number(compLaunches.reduce((sum, curr) => {
     if (curr.status === "APROVADO") {
       return sum + (curr.horas_sap * getRate(curr.frota));
     }
     return sum;
   }, 0).toFixed(2));
 
-  const pendingVal = Number(launches.reduce((sum, curr) => {
+  const pendingVal = Number(compLaunches.reduce((sum, curr) => {
     if (curr.status === "PENDENTE") {
       return sum + (curr.horas_sap * getRate(curr.frota));
     }
     return sum;
   }, 0).toFixed(2));
 
-  const returnedVal = Number(launches.reduce((sum, curr) => {
+  const returnedVal = Number(compLaunches.reduce((sum, curr) => {
     if (curr.status === "DEVOLVIDO") {
       return sum + (curr.horas_sap * getRate(curr.frota));
     }
@@ -73,12 +101,12 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
 
   const totalPipelineVal = totalBilledVal + approvedNotBilledVal + pendingVal + returnedVal;
 
-  const averageProd = launches.length > 0
-    ? Number((launches.reduce((sum, curr) => sum + curr.rendimento, 0) / launches.length).toFixed(2))
+  const averageProd = compLaunches.length > 0
+    ? Number((compLaunches.reduce((sum, curr) => sum + curr.rendimento, 0) / compLaunches.length).toFixed(2))
     : 0;
 
   // Calculation of average yield (rendimento) for approved launches (APROVADO and FATURADO)
-  const approvedListForYield = launches.filter(l => l.status === "APROVADO" || l.status === "FATURADO");
+  const approvedListForYield = compLaunches.filter(l => l.status === "APROVADO" || l.status === "FATURADO");
   const getYearMonth = (dateStr: string) => dateStr.substring(0, 7);
 
   let thisMonthKey = "";
@@ -124,22 +152,22 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
   const activeEquipCount = equipments.filter(e => e.ativo).length;
 
   // Measuring SAP efficiency over Worked hours for approved/fatured items
-  const efficiencyBaseLaunches = launches.filter(l => l.status === "FATURADO" || l.status === "APROVADO");
+  const efficiencyBaseLaunches = compLaunches.filter(l => l.status === "FATURADO" || l.status === "APROVADO");
   const baseHoursWorked = efficiencyBaseLaunches.reduce((sum, l) => sum + l.horas_trabalhadas, 0);
   const baseHoursSap = efficiencyBaseLaunches.reduce((sum, l) => sum + l.horas_sap, 0);
   const sapEfficiency = baseHoursWorked > 0 ? (baseHoursSap / baseHoursWorked) * 100 : 0;
 
   // Coordinator Metric Aggregations
   // 1. Pending & Returned launches
-  const pendingOrReturnedLaunches = launches.filter(l => l.status === "PENDENTE" || l.status === "DEVOLVIDO");
+  const pendingOrReturnedLaunches = compLaunches.filter(l => l.status === "PENDENTE" || l.status === "DEVOLVIDO");
   
   // 2. Horas Aprovadas & Faturadas
-  const approvedHours = launches.filter(l => l.status === "APROVADO").reduce((sum, l) => sum + l.horas_sap, 0);
-  const billedHours = launches.filter(l => l.status === "FATURADO").reduce((sum, l) => sum + l.horas_sap, 0);
+  const approvedHours = compLaunches.filter(l => l.status === "APROVADO").reduce((sum, l) => sum + l.horas_sap, 0);
+  const billedHours = compLaunches.filter(l => l.status === "FATURADO").reduce((sum, l) => sum + l.horas_sap, 0);
 
   // 3. Receita por Equipamento
   const revenueByEquipment = Object.entries(
-    launches.reduce((acc: Record<string, number>, curr) => {
+    compLaunches.reduce((acc: Record<string, number>, curr) => {
       const val = curr.status === "FATURADO"
         ? (curr.valor_total_faturamento || (curr.horas_sap * getRate(curr.frota)))
         : curr.status === "APROVADO"
@@ -154,7 +182,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
 
   // 4. Receita por Operador
   const revenueByOperator = Object.entries(
-    launches.reduce((acc: Record<string, number>, curr) => {
+    compLaunches.reduce((acc: Record<string, number>, curr) => {
       const val = curr.status === "FATURADO"
         ? (curr.valor_total_faturamento || (curr.horas_sap * getRate(curr.frota)))
         : curr.status === "APROVADO"
@@ -169,7 +197,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
 
   // 5. Receita por Núcleo
   const revenueByNucleo = Object.entries(
-    launches.reduce((acc: Record<string, number>, curr) => {
+    compLaunches.reduce((acc: Record<string, number>, curr) => {
       const val = curr.status === "FATURADO"
         ? (curr.valor_total_faturamento || (curr.horas_sap * getRate(curr.frota)))
         : curr.status === "APROVADO"
@@ -184,7 +212,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
 
   // 6. Receita por Fazenda
   const revenueByFazenda = Object.entries(
-    launches.reduce((acc: Record<string, number>, curr) => {
+    compLaunches.reduce((acc: Record<string, number>, curr) => {
       const val = curr.status === "FATURADO"
         ? (curr.valor_total_faturamento || (curr.horas_sap * getRate(curr.frota)))
         : curr.status === "APROVADO"
@@ -216,7 +244,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
   };
 
   // Filter launches for the current month
-  const currentMonthLaunchesForProd = launches.filter(l => getYearMonth(l.data) === thisMonthKey);
+  const currentMonthLaunchesForProd = compLaunches.filter(l => getYearMonth(l.data) === thisMonthKey);
 
   // Group by day for current month
   const productionPerDayMap = currentMonthLaunchesForProd.reduce((acc: { [key: string]: number }, curr) => {
@@ -237,7 +265,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
   const totalCurrentMonthProduction = currentMonthLaunchesForProd.reduce((sum, l) => sum + getProductionM3(l), 0);
 
   // A. Worked Hours per Day (Area Chart) - last 15 active days chronologically sorted
-  const hoursPerDayMap = launches.reduce((acc: { [key: string]: number }, curr) => {
+  const hoursPerDayMap = compLaunches.reduce((acc: { [key: string]: number }, curr) => {
     acc[curr.data] = Number(((acc[curr.data] || 0) + curr.horas_trabalhadas).toFixed(1));
     return acc;
   }, {});
@@ -251,7 +279,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
     }));
 
   // B. Worked Hours per Equipment (Bar Chart)
-  const hoursPerEquipMap = launches.reduce((acc: { [key: string]: number }, curr) => {
+  const hoursPerEquipMap = compLaunches.reduce((acc: { [key: string]: number }, curr) => {
     const key = `${curr.frota} (${(curr.equipamento || "").split(" ")[0] || curr.frota})`;
     acc[key] = Number(((acc[key] || 0) + curr.horas_trabalhadas).toFixed(1));
     return acc;
@@ -271,7 +299,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
   ].filter(item => item.value > 0);
 
   // D. Financial Evolution (Line Chart) over chronological days
-  const billingPerDayMap = launches.reduce((acc: { [key: string]: number }, curr) => {
+  const billingPerDayMap = compLaunches.reduce((acc: { [key: string]: number }, curr) => {
     if (curr.status === "FATURADO" && (curr.valor_total_faturamento || curr.horas_sap)) {
       const val = curr.valor_total_faturamento || (curr.horas_sap * getRate(curr.frota));
       acc[curr.data] = Number(((acc[curr.data] || 0) + val).toFixed(2));
@@ -291,7 +319,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
   });
 
   // E. Project/UP Financial Data
-  const upFinancialMap = launches.reduce((acc: { [key: string]: { billed: number, approved: number, pending: number } }, curr) => {
+  const upFinancialMap = compLaunches.reduce((acc: { [key: string]: { billed: number, approved: number, pending: number } }, curr) => {
     const up = curr.up || "Sem UP";
     if (!acc[up]) {
       acc[up] = { billed: 0, approved: 0, pending: 0 };
@@ -319,7 +347,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
   .slice(0, 8); // Top 8 UPs
 
   // F. Financial Activity Distribution
-  const activityFinancialMap = launches.reduce((acc: { [key: string]: number }, curr) => {
+  const activityFinancialMap = compLaunches.reduce((acc: { [key: string]: number }, curr) => {
     const act = curr.atividade || "Outros";
     const val = curr.status === "FATURADO"
       ? (curr.valor_total_faturamento || (curr.horas_sap * getRate(curr.frota)))
@@ -335,7 +363,7 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
 
   // G. Performance by Fleet Machinery
   const fleetPerformance = equipments.map(eq => {
-    const eqLaunches = launches.filter(l => l.frota === eq.frota);
+    const eqLaunches = compLaunches.filter(l => l.frota === eq.frota);
     const hrsTrabalhadas = eqLaunches.reduce((sum, l) => sum + l.horas_trabalhadas, 0);
     const hrsSap = eqLaunches.reduce((sum, l) => sum + l.horas_sap, 0);
     const billedVal = eqLaunches.filter(l => l.status === "FATURADO").reduce((sum, l) => sum + (l.valor_total_faturamento || 0), 0);
@@ -356,16 +384,16 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
 
   // --- EXECUTIVE METRICS CALCULATIONS (Requirement 1) ---
   const kpiOperacional = {
-    total: launches.length,
-    pendentes: launches.filter(l => l.status === "PENDENTE").length,
-    aprovados: launches.filter(l => l.status === "APROVADO").length,
-    devolvidos: launches.filter(l => l.status === "DEVOLVIDO").length,
-    faturados: launches.filter(l => l.status === "FATURADO").length,
+    total: compLaunches.length,
+    pendentes: compLaunches.filter(l => l.status === "PENDENTE").length,
+    aprovados: compLaunches.filter(l => l.status === "APROVADO").length,
+    devolvidos: compLaunches.filter(l => l.status === "DEVOLVIDO").length,
+    faturados: compLaunches.filter(l => l.status === "FATURADO").length,
   };
 
   const kpiProducao = {
-    horasTrabalhadas: Number(launches.reduce((sum, curr) => sum + curr.horas_trabalhadas, 0).toFixed(0)),
-    horasAprovadas: Number(launches.filter(l => l.status === "APROVADO" || l.status === "FATURADO").reduce((sum, curr) => sum + curr.horas_sap, 0).toFixed(0)),
+    horasTrabalhadas: Number(compLaunches.reduce((sum, curr) => sum + curr.horas_trabalhadas, 0).toFixed(0)),
+    horasAprovadas: Number(compLaunches.filter(l => l.status === "APROVADO" || l.status === "FATURADO").reduce((sum, curr) => sum + curr.horas_sap, 0).toFixed(0)),
     produtividadeMedia: averageProd,
     metaOperacional: equipments.length * 180,
   };

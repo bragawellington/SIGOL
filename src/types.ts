@@ -9,6 +9,7 @@ export interface User {
   ativo: boolean;
   created_at: string;
   senha?: string;
+  senha_alterada?: boolean;
 }
 
 export interface Colaborador {

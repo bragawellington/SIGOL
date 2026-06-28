@@ -169,14 +169,34 @@ export default function App() {
     if (isAuthenticated) loadAllData();
   }, [isAuthenticated]);
 
+  // Force password change on first login
+  const mustChangePassword = currentUser ? (currentUser.senha_alterada === false) : false;
+
   useEffect(() => {
+    if (mustChangePassword) {
+      setActiveTab("alterar-senha");
+      return;
+    }
     if (currentUser?.perfil === "OPERADOR") {
       if (!["lancamentos", "controle-mensal", "alterar-senha"].includes(activeTab)) setActiveTab("lancamentos");
     } else if (currentUser?.perfil === "TÉCNICO") {
       const allowed = ["dashboard", "pendencias", "lancamentos", "controle-mensal", "alterar-senha"];
       if (!allowed.includes(activeTab)) setActiveTab("dashboard");
     }
-  }, [currentUser, activeTab]);
+  }, [currentUser, activeTab, mustChangePassword]);
+
+  // Competência period calculation
+  const getCompetencia = () => {
+    const today = new Date();
+    const day = today.getDate();
+    if (day >= 21) {
+      return { startDate: new Date(today.getFullYear(), today.getMonth(), 21), endDate: new Date(today.getFullYear(), today.getMonth() + 1, 20) };
+    } else {
+      return { startDate: new Date(today.getFullYear(), today.getMonth() - 1, 21), endDate: new Date(today.getFullYear(), today.getMonth(), 20) };
+    }
+  };
+  const competencia = getCompetencia();
+  const compLabel = `${competencia.startDate.getDate()}/${String(competencia.startDate.getMonth() + 1).padStart(2, "0")} → ${competencia.endDate.getDate()}/${String(competencia.endDate.getMonth() + 1).padStart(2, "0")}`;
 
   // ── CRUD Handlers ──
   const isReadOnly = currentUser?.perfil === "GERÊNCIA";
@@ -285,6 +305,17 @@ export default function App() {
     if (!currentUser || isReadOnly) { blockReadOnly(); return; }
     if (isDemo) { setAtividades(prev => prev.filter(a => a.id !== id)); return; }
     if (supabase) { const { error } = await supabase.from('atividades').delete().eq('id', id); if (error) { alert("Falha ao excluir."); } await loadAllData(); }
+  };
+
+  const handleResetPassword = async (codigo: string) => {
+    if (!currentUser) return;
+    if (isDemo) { alert("Modo demonstração: senha resetada para sigol123."); return; }
+    if (supabase) {
+      const { error } = await supabase.rpc('resetar_senha', { p_codigo: codigo });
+      if (error) { alert("Falha ao resetar senha."); return; }
+      alert(`Senha do código ${codigo} resetada para sigol123.`);
+      await loadAllData();
+    }
   };
 
   // ── Navigation ──
@@ -529,7 +560,7 @@ export default function App() {
         {/* Right */}
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center text-[11px] text-slate-400 bg-[#1e293b] px-2.5 py-1 rounded-md border border-[#334155]">
-            21/06 → 20/07
+            {compLabel}
           </div>
           <button className="relative text-slate-400 hover:text-white p-1.5 transition-colors">
             <Bell className="w-4.5 h-4.5" />
@@ -639,6 +670,16 @@ export default function App() {
             )}
           </div>
 
+          {mustChangePassword && (
+            <div className="mx-4 lg:mx-6 mt-4 bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-center gap-3 animate-fadeIn">
+              <Lock className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Troca de senha obrigatória</p>
+                <p className="text-xs text-amber-600">Por segurança, altere sua senha padrão antes de usar o sistema.</p>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="h-96 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-[#2563eb] animate-spin" />
@@ -657,9 +698,9 @@ export default function App() {
               {activeTab === "cadastro-florestal" && <CadastroFlorestalTab forestry={forestry} currentUser={currentUser} onAddForest={handleAddForest} onImportForestList={handleImportForestList} />}
               {activeTab === "colaboradores" && <ColaboradoresTab colaboradores={colaboradores} currentUser={currentUser} onAddColaborador={handleAddColaborador} onImportColaboradorList={handleImportColaboradorList} />}
               {activeTab === "auditoria" && <AuditoriaTab logs={auditLogs} currentUser={currentUser} onClearLogs={handleClearAuditLogs} />}
-              {activeTab === "usuarios" && <GestaoUsuariosTab users={users} currentUser={currentUser} onSelectUser={() => {}} onAddUser={handleAddUser} />}
+              {activeTab === "usuarios" && <GestaoUsuariosTab users={users} currentUser={currentUser} onSelectUser={() => {}} onAddUser={handleAddUser} onResetPassword={handleResetPassword} />}
               {activeTab === "atividades" && <AtividadesTab atividades={atividades} currentUser={currentUser} onAddAtividade={handleAddAtividade} onUpdateAtividade={handleUpdateAtividade} onDeleteAtividade={handleDeleteAtividade} />}
-              {activeTab === "alterar-senha" && <AlterarSenhaTab currentUser={currentUser} />}
+              {activeTab === "alterar-senha" && <AlterarSenhaTab currentUser={currentUser} onSuccess={() => loadAllData()} />}
             </div>
           )}
         </main>

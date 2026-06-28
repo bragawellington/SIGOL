@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   CheckSquare, Square, DollarSign, CreditCard, ChevronDown, Check,
   Percent, ArrowRightCircle, ShieldCheck, Download, Calendar, Tractor,
@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Lancamento, Equipamento, User } from "../types";
 import { formatCurrency, formatDecimal, formatDateBR, exportToCSV } from "../utils";
+import { supabase, isDemo } from "../lib/supabase";
 
 interface FaturamentoTabProps {
   launches: Lancamento[];
@@ -36,7 +37,8 @@ export default function FaturamentoTab({
   const [discountVal, setDiscountVal] = useState(""); // Ajuste/Desconto em R$
   const [submittingBulk, setSubmittingBulk] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [clientName, setClientName] = useState("Klabin Florestal S/A");
+  const [clientName, setClientName] = useState("");
+  const [boletimNumber, setBoletimNumber] = useState<number | null>(null);
 
   // Editing individual billed items states
   const [editingLaunch, setEditingLaunch] = useState<Lancamento | null>(null);
@@ -186,13 +188,13 @@ Confirmar faturamento oficial?`;
   // Export Billed History CSV
   const handleExportHistory = () => {
     const headers = [
-      "ID", "Data", "Frota", "Equipamento", "UP", "Fazenda", "Horas SAP", 
-      "Valor Tarifa (R$)", "Faturamento Total (R$)", "Faturado Por", "Faturado Em"
+      "ID", "Data", "Frota", "Equipamento", "UP", "Fazenda", "Hor. Inicial", "Hor. Final",
+      "Horas SAP", "Valor Tarifa (R$)", "Faturamento Total (R$)", "Operador", "Faturado Por", "Faturado Em"
     ];
 
     const rows = billedLaunches.map(l => [
-      l.id, l.data, l.frota, l.equipamento, l.up, l.fazenda, l.horas_sap,
-      l.valor_hora_faturamento, l.valor_total_faturamento, l.faturado_por, l.faturado_em
+      l.id, l.data, l.frota, l.equipamento || l.frota, l.up, l.fazenda || "", l.horimetro_inicial, l.horimetro_final,
+      l.horas_sap, l.valor_hora_faturamento, l.valor_total_faturamento, `${l.operador_codigo} - ${l.operador_nome}`, l.faturado_por, l.faturado_em
     ]);
 
     exportToCSV("Historico_Faturamento_SIGOL", headers, rows);
@@ -212,6 +214,8 @@ Confirmar faturamento oficial?`;
       "UP / Projeto", 
       "Fazenda / Núcleo", 
       "Atividade", 
+      "Horímetro Inicial",
+      "Horímetro Final",
       "Horas Medidas", 
       "Tarifa Aplicada (R$/h)", 
       "Valor Total (R$)", 
@@ -225,10 +229,12 @@ Confirmar faturamento oficial?`;
         l.id,
         formatDateBR(l.data),
         l.frota,
-        l.equipamento,
+        l.equipamento || l.frota,
         l.up,
-        l.fazenda,
+        `${l.fazenda || ""} / ${l.nucleo || ""}`,
         l.atividade,
+        l.horimetro_inicial,
+        l.horimetro_final,
         l.horas_sap,
         rate,
         totalCost,
@@ -614,7 +620,15 @@ Confirmar faturamento oficial?`;
                       </button>
                       
                       <button
-                        onClick={() => setShowPrintPreview(true)}
+                        onClick={async () => {
+                          if (!isDemo && supabase) {
+                            const { data } = await supabase.rpc('proximo_boletim');
+                            setBoletimNumber(data || Date.now());
+                          } else {
+                            setBoletimNumber(launches.filter(l => l.status === "FATURADO").length + 1);
+                          }
+                          setShowPrintPreview(true);
+                        }}
                         className="py-2.5 px-3 bg-white hover:bg-[#f8fafc] text-[#0f172a] border border-[#e2e8f0] rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer"
                         title="Visualizar e Imprimir Boletim de Medição em PDF"
                       >
@@ -848,7 +862,7 @@ Confirmar faturamento oficial?`;
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-mono font-bold bg-slate-100 text-slate-800 px-2 py-1 rounded">
-                      Nº {Math.floor(100000 + Math.random() * 900000)}
+                      Nº {String(boletimNumber || 1).padStart(6, "0")}
                     </span>
                     <p className="text-[9px] text-slate-500 mt-1 font-semibold">Emitido em: {new Date().toLocaleDateString("pt-BR")}</p>
                   </div>
@@ -994,12 +1008,12 @@ Confirmar faturamento oficial?`;
                   <div className="space-y-2.5">
                     <div className="border-t border-slate-400 pt-1.5 w-44 mx-auto" />
                     <p className="font-semibold text-slate-800">{currentUser.nome}</p>
-                    <p className="uppercase tracking-wide text-[9px] font-bold text-slate-400">Responsável Medição (Klabin)</p>
+                    <p className="uppercase tracking-wide text-[9px] font-bold text-slate-400">Responsável Medição</p>
                   </div>
                   <div className="space-y-2.5">
                     <div className="border-t border-slate-400 pt-1.5 w-44 mx-auto" />
                     <p className="font-semibold text-slate-800">Fiscal de Silvicultura</p>
-                    <p className="uppercase tracking-wide text-[9px] font-bold text-slate-400">Aprovação de Campo (Klabin)</p>
+                    <p className="uppercase tracking-wide text-[9px] font-bold text-slate-400">Aprovação de Campo</p>
                   </div>
                   <div className="space-y-2.5">
                     <div className="border-t border-slate-400 pt-1.5 w-44 mx-auto" />

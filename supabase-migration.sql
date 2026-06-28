@@ -142,7 +142,8 @@ LANGUAGE plpgsql SECURITY DEFINER
 AS $$
 BEGIN
   UPDATE usuarios
-  SET senha_hash = crypt(p_nova_senha, gen_salt('bf'))
+  SET senha_hash = crypt(p_nova_senha, gen_salt('bf')),
+      senha_alterada = true
   WHERE codigo = UPPER(p_codigo);
 END;
 $$;

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { 
-  Users, UserCheck, Shield, Key, AlertCircle, RefreshCw, LogIn, Check, X,
+  Users, UserCheck, Shield, Key, KeyRound, AlertCircle, RefreshCw, LogIn, Check, X,
   FileSpreadsheet, Landmark, Tractor, ClipboardCheck, ArrowUpRight, Plus
 } from "lucide-react";
 import { User, ProfilOption } from "../types";
@@ -10,13 +10,15 @@ interface GestaoUsuariosTabProps {
   currentUser: User;
   onSelectUser: (user: User) => void;
   onAddUser: (u: Omit<User, "id" | "created_at">) => Promise<void>;
+  onResetPassword: (codigo: string) => Promise<void>;
 }
 
 export default function GestaoUsuariosTab({ 
   users, 
   currentUser, 
   onSelectUser,
-  onAddUser 
+  onAddUser,
+  onResetPassword
 }: GestaoUsuariosTabProps) {
   
   // States
@@ -302,6 +304,7 @@ export default function GestaoUsuariosTab({
                   <th className="p-3">Perfil de Acesso</th>
                   <th className="p-3 text-center">Permissões de Sistema</th>
                   <th className="p-3 text-center">Status</th>
+                  {(currentUser.perfil === "FATURAMENTO" || currentUser.perfil === "GERÊNCIA") && <th className="p-3 text-center">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2ece6]/55 font-sans">
@@ -325,7 +328,7 @@ export default function GestaoUsuariosTab({
                         </span>
                       </td>
                       <td className="p-3 text-center text-[#64748b] font-semibold text-[10px]">
-                        {u.perfil === "GERÊNCIA" ? "Acesso administrativo ilimitado" :
+                        {u.perfil === "GERÊNCIA" ? "Visualização completa (somente leitura)" :
                          u.perfil === "FATURAMENTO" ? "Valores, medições e notas financeiras" :
                          u.perfil === "TÉCNICO" ? "Revisão e homologação técnica de campo" :
                          "Apenas apontador da própria frota"}
@@ -337,6 +340,22 @@ export default function GestaoUsuariosTab({
                           <span className="bg-[#f8fafc] text-[#64748b] border border-[#e2e8f0] px-2 py-0.5 rounded-full text-[9px] font-semibold">INATIVO</span>
                         )}
                       </td>
+                      {(currentUser.perfil === "FATURAMENTO" || currentUser.perfil === "GERÊNCIA") && (
+                        <td className="p-3 text-center">
+                          {u.email !== currentUser.email && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Resetar a senha de ${u.nome} (${u.codigo}) para sigol123?`)) {
+                                  onResetPassword(u.codigo);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-semibold transition-colors"
+                            >
+                              <KeyRound className="w-3 h-3" /> Resetar Senha
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

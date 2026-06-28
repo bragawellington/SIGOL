@@ -650,6 +650,30 @@ export default function LancamentosTab({
         </div>
       </div>
 
+      {/* Last horímetro per frota */}
+      {(() => {
+        const lastHorimetros = new Map<string, { final: number; data: string }>();
+        for (const l of launches) {
+          if (!lastHorimetros.has(l.frota) || l.data > (lastHorimetros.get(l.frota)?.data || "")) {
+            lastHorimetros.set(l.frota, { final: l.horimetro_final, data: l.data });
+          }
+        }
+        const entries = Array.from(lastHorimetros.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        if (entries.length === 0) return null;
+        return (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {entries.map(([frota, info]) => (
+              <div key={frota} className="shrink-0 bg-white border border-[#e2e8f0] rounded-lg px-3 py-2 text-xs">
+                <span className="font-semibold text-[#2563eb]">{frota}</span>
+                <span className="text-[#64748b] ml-2">Último:</span>
+                <span className="font-mono font-bold text-[#0f172a] ml-1">{info.final.toFixed(1)}</span>
+                <span className="text-[10px] text-[#94a3b8] ml-1">({formatDateBR(info.data)})</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Advanced Filters Bar */}
       <div className="p-4 bg-white rounded-xl border border-[#e2e8f0] shadow-xs space-y-3 font-sans">
         <div className="flex items-center space-x-2 text-[#2563eb] font-bold text-[10px] uppercase tracking-wider">
