@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Users, Tractor, CalendarDays, Award, ChevronLeft, ChevronRight, Calculator, FileCheck } from "lucide-react";
+import { Users, Tractor, CalendarDays, Award, ChevronLeft, ChevronRight, Calculator, FileCheck, Download } from "lucide-react";
 import { Lancamento, Colaborador, Equipamento } from "../types";
-import { formatDecimal } from "../utils";
+import { formatDecimal, exportToCSV } from "../utils";
 
 interface ControleMensalTabProps {
   launches: Lancamento[];
@@ -58,6 +58,25 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
   const periodDays = generateOperationalDates();
   const metaPadrao = 180; // Standard 180h quota
 
+  const handleExportExcel = () => {
+    const data = activeSubTab === "COLABORADORES" ? collaboratorMatrix : equipmentMatrix;
+    const headers = ["Nome", "Registro/Frota", ...periodDays.map(d => {
+      const day = d.split("-")[2];
+      const mIdx = parseInt(d.split("-")[1]) - 1;
+      const mName = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][mIdx];
+      return `${day}/${mName}`;
+    }), "Acumulado", "% Meta"];
+
+    const rows = data.map((item: any) => {
+      const name = item.colaborador?.nome || item.equipamento?.frota || "";
+      const reg = item.colaborador?.registro || item.equipamento?.tipo || "";
+      const dayValues = periodDays.map(d => item.dailyHours[d] || 0);
+      return [name, reg, ...dayValues, item.totalAcumulado, `${item.percentOfMeta}%`];
+    });
+
+    exportToCSV(`ControleMensal_${competenciaLabel.replace(/ /g, "_")}`, headers, rows);
+  };
+
   // 2. Compute Collaborator Matrix
   const collaboratorMatrix = colaboradores.map(col => {
     const dailyHours: { [date: string]: number } = {};
@@ -113,7 +132,7 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-[#e2e8f0] gap-4">
         <div>
           <h1 className="text-xl font-bold  text-[#0f172a]">Controle Operacional Mensal</h1>
-          <p className="text-xs text-[#64748b]">Planilha técnica detalhada de horas acumuladas no fechamento mensal corrente (21/05 até 20/06).</p>
+          <p className="text-xs text-[#64748b]">Planilha técnica detalhada de horas acumuladas no fechamento mensal — competência {competenciaLabel}.</p>
         </div>
 
         {/* Toggle Grid perspective */}
@@ -179,16 +198,23 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
             <FileCheck className="w-4 h-4 text-[#2563eb]" />
             <span>Planilha {activeSubTab === "COLABORADORES" ? "Time-Sheet de Operadores" : "Utilização da Frota de Máquinas"}</span>
           </div>
-          <span className="text-[9.5px] text-[#64748b] font-bold uppercase tracking-wider">Arraste para o lado para ver todos os 30 dias</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => handleExportExcel()} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] text-[#2563eb] text-[10px] font-semibold rounded-lg border border-[#bfdbfe] transition-colors">
+              <Download className="w-3 h-3" /> Excel
+            </button>
+            <button onClick={() => window.print()} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] text-[#2563eb] text-[10px] font-semibold rounded-lg border border-[#bfdbfe] transition-colors">
+              <Download className="w-3 h-3" /> PDF
+            </button>
+          </div>
         </div>
 
         {/* Scalable SpreadSheet frame */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-w-full">
           {activeSubTab === "COLABORADORES" ? (
-            <table className="w-full text-left border-collapse text-xs select-none font-sans">
+            <table className="text-left border-collapse text-xs select-none font-sans" style={{ minWidth: `${periodDays.length * 38 + 300 + 120 + 140}px` }}>
               <thead>
                 <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[10px] text-[#2563eb] font-semibold uppercase tracking-wider">
-                  <th className="p-3 sticky left-0 bg-[#f8fafc] border-r border-[#e2e8f0] z-10 w-44 font-bold">Colaborador</th>
+                  <th className="p-3 sticky left-0 bg-[#f8fafc] border-r border-[#e2e8f0] z-10 min-w-[220px] font-bold">Colaborador</th>
                   {periodDays.map(date => {
                     const day = date.split("-")[2];
                     const monthIdx = parseInt(date.split("-")[1]) - 1; const month = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][monthIdx];
@@ -199,8 +225,8 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                       </th>
                     );
                   })}
-                  <th className="p-3 text-center border-l border-[#e2e8f0] bg-[#f8fafc] sticky right-36 z-10 w-24 font-bold">Acumulado</th>
-                  <th className="p-3 bg-[#f8fafc] text-left sticky right-0 shadow-xs z-10 w-36 font-bold">Progresso Meta ({metaPadrao}h)</th>
+                  <th className="p-3 text-center border-l-2 border-[#2563eb]/20 bg-[#eff6ff] min-w-[90px] font-bold">Acumulado</th>
+                  <th className="p-3 bg-[#eff6ff] text-center min-w-[120px] font-bold">Progresso<br/>Meta ({metaPadrao}h)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2ece6]/55">
@@ -231,12 +257,12 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                     })}
 
                     {/* Acumulado value pinned right */}
-                    <td className="p-3 font-mono font-semibold text-center border-l border-[#e2e8f0] bg-[#f8fafc] text-[#0f172a] sticky right-36 z-10">
+                    <td className="p-3 font-mono font-semibold text-center border-l-2 border-[#2563eb]/20 bg-[#eff6ff]/50 text-[#0f172a]">
                       {formatDecimal(totalAcumulado, 1)}h
                     </td>
 
                     {/* Visual Progress bar */}
-                    <td className="p-3 sticky right-0 bg-white border-l border-[#e2e8f0] z-10 shadow-xs">
+                    <td className="p-3 bg-white border-l border-[#e2e8f0]">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-[9px] font-semibold text-[#64748b]">
                           <span>{percentOfMeta}%</span>
@@ -261,10 +287,10 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
             </table>
           ) : (
             // EQUIPMENTS GRID VIEW
-            <table className="w-full text-left border-collapse text-xs select-none font-sans">
+            <table className="text-left border-collapse text-xs select-none font-sans" style={{ minWidth: `${periodDays.length * 38 + 300 + 120 + 140}px` }}>
               <thead>
                 <tr className="bg-[#f8fafc] border-b border-[#e2e8f0] text-[10px] text-[#2563eb] font-semibold uppercase tracking-wider">
-                  <th className="p-3 sticky left-0 bg-[#f8fafc] border-r border-[#e2e8f0] z-10 w-44 font-bold">Equipamento / Frota</th>
+                  <th className="p-3 sticky left-0 bg-[#f8fafc] border-r border-[#e2e8f0] z-10 min-w-[220px] font-bold">Equipamento / Frota</th>
                   {periodDays.map(date => {
                     const day = date.split("-")[2];
                     const monthIdx = parseInt(date.split("-")[1]) - 1; const month = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][monthIdx];
@@ -275,8 +301,8 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                       </th>
                     );
                   })}
-                  <th className="p-3 text-center border-l border-[#e2e8f0] bg-[#f8fafc] sticky right-36 z-10 w-24 font-bold">Acumulado</th>
-                  <th className="p-3 bg-[#f8fafc] text-left sticky right-0 shadow-xs z-10 w-36 font-bold">Utilização Meta (180h)</th>
+                  <th className="p-3 text-center border-l-2 border-[#2563eb]/20 bg-[#eff6ff] min-w-[90px] font-bold">Acumulado</th>
+                  <th className="p-3 bg-[#eff6ff] text-center min-w-[120px] font-bold">Utilização<br/>Meta (180h)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2ece6]/55">
@@ -307,12 +333,12 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                     })}
 
                     {/* Total acumulado pinned right */}
-                    <td className="p-3 font-mono font-semibold text-center border-l border-[#e2e8f0] bg-[#f8fafc] text-[#0f172a] sticky right-36 z-10">
+                    <td className="p-3 font-mono font-semibold text-center border-l-2 border-[#2563eb]/20 bg-[#eff6ff]/50 text-[#0f172a]">
                       {formatDecimal(totalAcumulado, 1)}h
                     </td>
 
                     {/* Utilisation progress chart */}
-                    <td className="p-3 sticky right-0 bg-white border-l border-[#e2e8f0] z-10 shadow-xs font-sans">
+                    <td className="p-3 bg-white border-l border-[#e2e8f0] font-sans">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-[9px] font-semibold text-[#64748b]">
                           <span>{percentOfMeta}%</span>
