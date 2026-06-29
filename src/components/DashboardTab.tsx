@@ -6,20 +6,21 @@ import {
 import { 
   ListCollapse, Clock, CheckCircle2, FileSpreadsheet, Hourglass, Landmark, 
   FlameKindling, Tractor, TrendingUp, ShieldAlert, Layers, BarChart3, 
-  ArrowUpRight, DollarSign, Percent, Briefcase, HelpCircle, AlertCircle
+  ArrowUpRight, DollarSign, Percent, Briefcase, HelpCircle, AlertCircle, Activity
 } from "lucide-react";
-import { Lancamento, Equipamento, User, CadastroFlorestal } from "../types";
+import { Lancamento, Equipamento, User, CadastroFlorestal, Colaborador } from "../types";
 import { formatCurrency, formatDecimal, formatDateBR } from "../utils";
 import DashboardRendimentoUP from "./DashboardRendimentoUP";
 
 interface DashboardTabProps {
   launches: Lancamento[];
   equipments: Equipamento[];
+  colaboradores: Colaborador[];
   currentUser: User;
   forestry: CadastroFlorestal[];
 }
 
-export default function DashboardTab({ launches, equipments, currentUser, forestry }: DashboardTabProps) {
+export default function DashboardTab({ launches, equipments, colaboradores, currentUser, forestry }: DashboardTabProps) {
   const hasFinancialAccess = currentUser.perfil === "FATURAMENTO" || currentUser.perfil === "GERÊNCIA";
   const canApprove = currentUser.perfil === "TÉCNICO" || hasFinancialAccess;
   
@@ -549,6 +550,188 @@ export default function DashboardTab({ launches, equipments, currentUser, forest
           )}
         </div>
       </div>
+
+      {/* ======================= TÉCNICO DASHBOARD ======================= */}
+      {currentUser.perfil === "TÉCNICO" && activeSubTab === "executivo" && (() => {
+        const pending = compLaunches.filter(l => l.status === "PENDENTE");
+        const approved = compLaunches.filter(l => l.status === "APROVADO" || l.status === "FATURADO");
+        const returned = compLaunches.filter(l => l.status === "DEVOLVIDO");
+        const totalReviewed = approved.length + returned.length;
+        const rejectRate = totalReviewed > 0 ? Math.round((returned.length / totalReviewed) * 100) : 0;
+        
+        // Average approval time
+        const approvalTimes = approved.filter(l => l.aprovado_em && l.criado_em).map(l => {
+          const created = new Date(l.criado_em).getTime();
+          const approvedAt = new Date(l.aprovado_em!).getTime();
+          return (approvedAt - created) / (1000 * 60 * 60); // hours
+        });
+        const avgApprovalHours = approvalTimes.length > 0 ? approvalTimes.reduce((a, b) => a + b, 0) / approvalTimes.length : 0;
+
+        // Pending by day
+        const pendingByDay = new Map<string, number>();
+        for (const l of pending) {
+          pendingByDay.set(l.data, (pendingByDay.get(l.data) || 0) + 1);
+        }
+        const pendingDays = Array.from(pendingByDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+        return (
+          <div className="space-y-4">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-4 bg-white rounded-xl border border-amber-200 shadow-xs">
+                <p className="text-[10px] font-bold uppercase text-amber-600">Aguardando Aprovação</p>
+                <h3 className="text-2xl font-black text-amber-700 mt-1">{pending.length}</h3>
+                <p className="text-[10px] text-[#64748b]">boletins pendentes</p>
+              </div>
+              <div className="p-4 bg-white rounded-xl border border-green-200 shadow-xs">
+                <p className="text-[10px] font-bold uppercase text-green-600">Aprovados</p>
+                <h3 className="text-2xl font-black text-green-700 mt-1">{approved.length}</h3>
+                <p className="text-[10px] text-[#64748b]">nesta competência</p>
+              </div>
+              <div className="p-4 bg-white rounded-xl border border-[#e2e8f0] shadow-xs">
+                <p className="text-[10px] font-bold uppercase text-[#64748b]">Tempo Médio Aprovação</p>
+                <h3 className="text-2xl font-black text-[#0f172a] mt-1">{avgApprovalHours < 24 ? `${avgApprovalHours.toFixed(1)}h` : `${(avgApprovalHours / 24).toFixed(1)}d`}</h3>
+                <p className="text-[10px] text-[#64748b]">entre lançamento e aprovação</p>
+              </div>
+              <div className="p-4 bg-white rounded-xl border border-red-200 shadow-xs">
+                <p className="text-[10px] font-bold uppercase text-red-600">Taxa de Devolução</p>
+                <h3 className="text-2xl font-black text-red-600 mt-1">{rejectRate}%</h3>
+                <p className="text-[10px] text-[#64748b]">{returned.length} de {totalReviewed} revisados</p>
+              </div>
+            </div>
+
+            {/* Pending by Day */}
+            {pendingDays.length > 0 && (
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <h3 className="text-xs font-bold text-[#0f172a] mb-3">Pendências por Dia</h3>
+                <div className="space-y-1.5">
+                  {pendingDays.map(([date, count]) => {
+                    const d = date.split("-");
+                    return (
+                      <div key={date} className="flex items-center gap-3 text-xs">
+                        <span className="w-16 font-mono font-semibold text-[#2563eb]">{d[2]}/{d[1]}</span>
+                        <div className="flex-1 bg-[#f8fafc] rounded-full h-4 overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full flex items-center justify-end pr-1" style={{ width: `${Math.min((count / Math.max(...Array.from(pendingByDay.values()))) * 100, 100)}%` }}>
+                            <span className="text-[9px] font-bold text-amber-900">{count}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Pending List */}
+            {pending.length > 0 && (
+              <div className="bg-white rounded-xl border border-[#e2e8f0] overflow-hidden">
+                <div className="p-3 border-b border-[#e2e8f0]">
+                  <h3 className="text-xs font-bold text-[#0f172a]">Últimos Boletins Aguardando Aprovação</h3>
+                </div>
+                <div className="divide-y divide-[#f1f5f9]">
+                  {pending.slice(0, 10).map(l => (
+                    <div key={l.id} className="px-3 py-2 flex items-center gap-3 text-xs hover:bg-[#f8fafc]">
+                      <span className="font-mono font-semibold text-[#2563eb] w-16">{l.data.split("-").slice(1).reverse().join("/")}</span>
+                      <span className="font-semibold text-[#0f172a] flex-1 truncate">{l.operador_nome}</span>
+                      <span className="text-[#64748b] w-20">{l.frota}</span>
+                      <span className="text-[#64748b] w-16 truncate">{l.up}</span>
+                      <span className="font-bold text-[#0f172a] w-12 text-right">{l.horas_trabalhadas.toFixed(1)}h</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ======================= PAINEL DE SAÚDE ======================= */}
+      {hasFinancialAccess && activeSubTab === "executivo" && (() => {
+        // Launches per day (last 30 days)
+        const last30 = new Date(); last30.setDate(last30.getDate() - 30);
+        const last30Str = `${last30.getFullYear()}-${String(last30.getMonth() + 1).padStart(2, "0")}-${String(last30.getDate()).padStart(2, "0")}`;
+        const recentLaunches = launches.filter(l => l.data >= last30Str);
+        const launchesByDay = new Map<string, number>();
+        for (const l of recentLaunches) { launchesByDay.set(l.data, (launchesByDay.get(l.data) || 0) + 1); }
+        const maxDayCount = Math.max(...Array.from(launchesByDay.values()), 1);
+
+        // Operators without launches this week
+        const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekAgoStr = `${weekAgo.getFullYear()}-${String(weekAgo.getMonth() + 1).padStart(2, "0")}-${String(weekAgo.getDate()).padStart(2, "0")}`;
+        const activeOps = new Set(launches.filter(l => l.data >= weekAgoStr).map(l => l.operador_codigo));
+        const allOps = colaboradores.filter(c => c.funcao.toUpperCase().includes("OPERADOR") || c.funcao.toUpperCase().includes("MÁQUINA") || c.funcao.toUpperCase().includes("MOTORISTA") || c.funcao.toUpperCase().includes("TRATORISTA"));
+        const inactiveOps = allOps.filter(c => !activeOps.has(c.registro));
+
+        // Machines idle > 3 days
+        const threeDaysAgo = new Date(); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const threeDaysStr = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(threeDaysAgo.getDate()).padStart(2, "0")}`;
+        const activeEquips = new Set(launches.filter(l => l.data >= threeDaysStr).map(l => l.frota));
+        const idleEquips = equipments.filter(e => e.ativo && !activeEquips.has(e.frota));
+
+        return (
+          <div className="space-y-4 mt-4">
+            <h3 className="text-sm font-bold text-[#0f172a] flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#2563eb]" />
+              Painel de Saúde Operacional
+            </h3>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Launches per day chart */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <p className="text-[10px] font-bold text-[#64748b] uppercase mb-3">Lançamentos / Dia (30 dias)</p>
+                <div className="space-y-1">
+                  {Array.from(launchesByDay.entries()).sort((a, b) => a[0].localeCompare(b[0])).slice(-15).map(([date, count]) => (
+                    <div key={date} className="flex items-center gap-2 text-[10px]">
+                      <span className="w-10 font-mono text-[#64748b]">{date.split("-").slice(1).join("/")}</span>
+                      <div className="flex-1 bg-[#f8fafc] rounded-full h-3 overflow-hidden">
+                        <div className="h-full bg-[#2563eb] rounded-full" style={{ width: `${(count / maxDayCount) * 100}%` }} />
+                      </div>
+                      <span className="w-5 text-right font-bold text-[#0f172a]">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Inactive operators */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <p className="text-[10px] font-bold text-[#64748b] uppercase mb-2">Operadores Sem Lançamento (7 dias)</p>
+                {inactiveOps.length === 0 ? (
+                  <p className="text-xs text-green-600 font-semibold py-4 text-center">Todos os operadores estão ativos ✓</p>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {inactiveOps.map(op => (
+                      <div key={op.id} className="flex items-center gap-2 text-[10px] py-1 border-b border-[#f1f5f9]">
+                        <span className="w-2 h-2 rounded-full bg-red-400" />
+                        <span className="font-semibold text-[#0f172a] flex-1 truncate">{op.nome}</span>
+                        <span className="text-[#64748b] font-mono">{op.registro}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Idle equipment */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <p className="text-[10px] font-bold text-[#64748b] uppercase mb-2">Máquinas Paradas (+3 dias)</p>
+                {idleEquips.length === 0 ? (
+                  <p className="text-xs text-green-600 font-semibold py-4 text-center">Toda a frota está operando ✓</p>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {idleEquips.map(eq => (
+                      <div key={eq.id} className="flex items-center gap-2 text-[10px] py-1 border-b border-[#f1f5f9]">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        <span className="font-bold text-[#2563eb]">{eq.frota}</span>
+                        <span className="text-[#64748b] flex-1 truncate">{eq.tipo}</span>
+                        {eq.em_manutencao && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">MANUTENÇÃO</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ======================= TAB: FINANCIAL & MANAGEMENT ======================= */}
       {hasFinancialAccess && activeSubTab === "financeiro" && (

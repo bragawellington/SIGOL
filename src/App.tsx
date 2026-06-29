@@ -373,11 +373,9 @@ export default function App() {
         <div className="w-full max-w-sm">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="w-14 h-14 bg-[#2563eb] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
-              <TreePine className="w-8 h-8 text-white" />
-            </div>
+            <img src="/logo.jpg" alt="Costa Pinto" className="w-20 h-20 rounded-2xl mx-auto mb-4 shadow-lg object-cover" />
             <h1 className="text-2xl font-bold text-white tracking-tight">SIGOL</h1>
-            <p className="text-sm text-slate-400 mt-1">Sistema Integrado de Gestão Operacional</p>
+            <p className="text-sm text-slate-400 mt-1">Costa Pinto — Sistema Integrado de Gestão Operacional</p>
           </div>
 
           {/* Login card */}
@@ -474,9 +472,7 @@ export default function App() {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-[#2563eb] rounded-lg flex items-center justify-center">
-              <TreePine className="w-4 h-4 text-white" />
-            </div>
+            <img src="/logo.jpg" alt="Costa Pinto" className="w-8 h-8 rounded-lg object-cover" />
             <span className="text-white font-bold text-sm tracking-tight">SIGOL</span>
           </div>
         </div>
@@ -680,6 +676,32 @@ export default function App() {
             </div>
           )}
 
+          {/* Login notification - summary */}
+          {!mustChangePassword && activeTab === "lancamentos" && (() => {
+            const myLaunches = launches.filter(l => 
+              l.operador_codigo === currentUser.codigo || l.criado_por === currentUser.email
+            );
+            const devolvidos = myLaunches.filter(l => l.status === "DEVOLVIDO").length;
+            const pendentes = myLaunches.filter(l => l.status === "PENDENTE").length;
+            if (devolvidos === 0 && pendentes === 0) return null;
+            return (
+              <div className="mx-4 lg:mx-6 mt-3 flex gap-3 animate-fadeIn">
+                {devolvidos > 0 && (
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                    <span className="text-red-700 font-semibold">{devolvidos} lançamento{devolvidos > 1 ? "s" : ""} devolvido{devolvidos > 1 ? "s" : ""} para corrigir</span>
+                  </div>
+                )}
+                {pendentes > 0 && (
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs">
+                    <Clock className="w-3.5 h-3.5 text-blue-500" />
+                    <span className="text-blue-700 font-semibold">{pendentes} aguardando aprovação</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {loading ? (
             <div className="h-96 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-[#2563eb] animate-spin" />
@@ -689,7 +711,7 @@ export default function App() {
             <div className="h-96 flex items-center justify-center text-xs text-red-500">Nenhum perfil encontrado.</div>
           ) : (
             <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6 animate-fadeIn">
-              {activeTab === "dashboard" && <DashboardTab launches={launches} equipments={equipments} currentUser={currentUser} forestry={forestry} />}
+              {activeTab === "dashboard" && <DashboardTab launches={launches} equipments={equipments} colaboradores={colaboradores} currentUser={currentUser} forestry={forestry} />}
               {activeTab === "pendencias" && <PendenciasTab launches={launches} equipments={equipments} colaboradores={colaboradores} currentUser={currentUser} onUpdateLaunchStatus={handleUpdateLaunchStatus} onNavigateToTab={setActiveTab} />}
               {activeTab === "lancamentos" && <LancamentosTab launches={launches} equipments={equipments} forestry={forestry} colaboradores={colaboradores} currentUser={currentUser} atividades={atividades} onAddLaunch={handleAddLaunch} onUpdateLaunchStatus={handleUpdateLaunchStatus} onImportLaunchList={handleImportLaunchList} />}
               {activeTab === "controle-mensal" && <ControllingTab launches={launches} colaboradores={colaboradores} equipments={equipments} />}

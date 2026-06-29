@@ -1,0 +1,22 @@
+{
+  "name": "SIGOL - Costa Pinto",
+  "short_name": "SIGOL",
+  "description": "Sistema Integrado de Gestão Operacional de Lançamentos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

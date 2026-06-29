@@ -1,3 +1,4 @@
+import { LOGO_BASE64 } from "../lib/logoBase64";
 import { useState } from "react";
 import { Users, Tractor, CalendarDays, Award, ChevronLeft, ChevronRight, Calculator, FileCheck, Download } from "lucide-react";
 import { Lancamento, Colaborador, Equipamento } from "../types";
@@ -12,6 +13,9 @@ interface ControleMensalTabProps {
 export default function ControleMensalTab({ launches, colaboradores, equipments }: ControleMensalTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<"COLABORADORES" | "EQUIPAMENTOS">("COLABORADORES");
   const [showPrintView, setShowPrintView] = useState(false);
+  const [showDetailedReport, setShowDetailedReport] = useState(false);
+  const [filterNucleo, setFilterNucleo] = useState("TODOS");
+  const [filterSearch, setFilterSearch] = useState("");
 
   // 1. Dynamic competência based on current date
   const today = new Date();
@@ -58,6 +62,32 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
 
   const periodDays = generateOperationalDates();
   const metaPadrao = 180; // Standard 180h quota
+
+  // Derive operator's primary núcleo from launches
+  const operadorNucleoMap = new Map<string, string>();
+  for (const l of launches) {
+    if (l.nucleo) {
+      const current = operadorNucleoMap.get(l.operador_codigo);
+      if (!current) operadorNucleoMap.set(l.operador_codigo, l.nucleo);
+    } else if (l.up) {
+      const prefix = l.up.substring(0, 2); // T1, T2, etc
+      const nucleo = `MS${prefix[1]}`;
+      if (!operadorNucleoMap.has(l.operador_codigo)) operadorNucleoMap.set(l.operador_codigo, nucleo);
+    }
+  }
+  const availableNucleos = ["TODOS", ...Array.from(new Set(operadorNucleoMap.values())).sort()];
+
+  // Filtered collaborator matrix
+  const filteredCollabMatrix = collaboratorMatrix.filter(item => {
+    const matchSearch = !filterSearch || item.colaborador.nome.toLowerCase().includes(filterSearch.toLowerCase()) || item.colaborador.registro.toLowerCase().includes(filterSearch.toLowerCase());
+    const opNucleo = operadorNucleoMap.get(item.colaborador.registro) || "";
+    const matchNucleo = filterNucleo === "TODOS" || opNucleo === filterNucleo;
+    return matchSearch && matchNucleo;
+  });
+
+  const filteredEquipMatrix = equipmentMatrix.filter(item => {
+    return !filterSearch || item.equipamento.frota.toLowerCase().includes(filterSearch.toLowerCase()) || item.equipamento.tipo.toLowerCase().includes(filterSearch.toLowerCase());
+  });
 
   const handleExportExcel = () => {
     const data = activeSubTab === "COLABORADORES" ? collaboratorMatrix : equipmentMatrix;
@@ -204,12 +234,27 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
               <Download className="w-3 h-3" /> Excel
             </button>
             <button onClick={() => setShowPrintView(true)} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] text-[#2563eb] text-[10px] font-semibold rounded-lg border border-[#bfdbfe] transition-colors">
-              <Download className="w-3 h-3" /> PDF
+              <Download className="w-3 h-3" /> PDF Resumo
+            </button>
+            <button onClick={() => setShowDetailedReport(true)} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-semibold rounded-lg transition-colors">
+              <Download className="w-3 h-3" /> PDF Detalhado
             </button>
           </div>
         </div>
 
         {/* Scalable SpreadSheet frame */}
+        <div className="flex items-center gap-3 mb-2">
+          <input type="text" placeholder="Buscar nome ou registro..." value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
+            className="px-2.5 py-1.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs w-52 focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] focus:outline-none" />
+          {activeSubTab === "COLABORADORES" && (
+            <select value={filterNucleo} onChange={(e) => setFilterNucleo(e.target.value)}
+              className="px-2.5 py-1.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs font-semibold text-[#2563eb] focus:ring-1 focus:ring-[#2563eb] focus:outline-none">
+              {availableNucleos.map(n => <option key={n} value={n}>{n === "TODOS" ? "Todos os Núcleos" : `Núcleo ${n}`}</option>)}
+            </select>
+          )}
+          <span className="text-[10px] text-[#64748b] ml-auto">{activeSubTab === "COLABORADORES" ? filteredCollabMatrix.length : filteredEquipMatrix.length} registros</span>
+        </div>
         <div className="overflow-x-auto max-w-full">
           {activeSubTab === "COLABORADORES" ? (
             <table className="text-left border-collapse text-xs select-none font-sans" style={{ minWidth: `${periodDays.length * 38 + 300 + 120 + 140}px` }}>
@@ -231,7 +276,7 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2ece6]/55">
-                {collaboratorMatrix.map(({ colaborador, dailyHours, totalAcumulado, percentOfMeta }) => (
+                {filteredCollabMatrix.map(({ colaborador, dailyHours, totalAcumulado, percentOfMeta }) => (
                   <tr key={colaborador.id} className="hover:bg-[#f8fafc]/20">
                     
                     {/* Name column pinned left */}
@@ -307,7 +352,7 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2ece6]/55">
-                {equipmentMatrix.map(({ equipamento, dailyHours, totalAcumulado, percentOfMeta }) => (
+                {filteredEquipMatrix.map(({ equipamento, dailyHours, totalAcumulado, percentOfMeta }) => (
                   <tr key={equipamento.id} className="hover:bg-[#f8fafc]/20">
                     
                     {/* Name column pinned left */}
@@ -408,7 +453,7 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                 {/* Header */}
                 <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3 mb-5">
                   <div>
-                    <h1 className="text-[18px] font-extrabold text-slate-900 tracking-tight">SIGOL • SISTEMA OPERACIONAL FLORESTAL</h1>
+                    <div className="flex items-center gap-3"><img src={LOGO_BASE64} alt="Costa Pinto" className="w-12 h-12 rounded-lg" /><div><h1 className="text-[16px] font-extrabold text-slate-900 tracking-tight">COSTA PINTO • SIGOL</h1><p className="text-[9px] text-slate-500 font-semibold">SISTEMA INTEGRADO DE GESTÃO OPERACIONAL</p></div></div>
                     <p className="text-[10px] text-slate-500 font-semibold mt-0.5">RELATÓRIO DE CONTROLE MENSAL DE HORAS OPERACIONAIS</p>
                   </div>
                   <div className="text-right">
@@ -524,6 +569,192 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
                 {/* Footer */}
                 <div className="mt-8 pt-3 border-t border-slate-200 text-[7px] text-slate-300 text-center">
                   SIGOL — Sistema Integrado de Gestão Operacional de Lançamentos • Documento gerado automaticamente • {new Date().toLocaleString("pt-BR")}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ DETAILED REPORT - PDF Landscape ═══ */}
+      {showDetailedReport && (() => {
+        const compStartStr = `${compStart.getFullYear()}-${String(compStart.getMonth() + 1).padStart(2, "0")}-${String(compStart.getDate()).padStart(2, "0")}`;
+        const compEndStr = `${compEnd.getFullYear()}-${String(compEnd.getMonth() + 1).padStart(2, "0")}-${String(compEnd.getDate()).padStart(2, "0")}`;
+        const compLaunches = [...launches].filter(l => l.data >= compStartStr && l.data <= compEndStr).sort((a, b) => a.data.localeCompare(b.data) || a.frota.localeCompare(b.frota));
+        
+        const totalHoras = compLaunches.reduce((s, l) => s + l.horas_trabalhadas, 0);
+        const uniqueDays = new Set(compLaunches.map(l => l.data));
+        const uniqueOps = new Set(compLaunches.map(l => l.operador_codigo));
+        const uniqueEquips = new Set(compLaunches.map(l => l.frota));
+
+        // Group by date
+        const byDate = new Map<string, typeof compLaunches>();
+        for (const l of compLaunches) {
+          const arr = byDate.get(l.data) || [];
+          arr.push(l);
+          byDate.set(l.data, arr);
+        }
+
+        // Disponibilidade mecânica (hours per equipment)
+        const equipHours = new Map<string, number>();
+        for (const l of compLaunches) {
+          equipHours.set(l.frota, (equipHours.get(l.frota) || 0) + l.horas_trabalhadas);
+        }
+        const equipEntries = Array.from(equipHours.entries()).sort((a, b) => b[1] - a[1]);
+        const maxPossibleHours = periodDays.length * 9; // 9h/dia máximo
+
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print:bg-white print:static">
+            <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
+            <div className="max-w-[297mm] mx-auto my-6 print:my-0">
+              <div className="flex items-center justify-between mb-3 px-2 print:hidden">
+                <span className="text-white text-sm font-semibold">Relatório Detalhado — A4 Paisagem</span>
+                <div className="flex gap-2">
+                  <button onClick={() => window.print()} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
+                  <button onClick={() => setShowDetailedReport(false)} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-lg">Fechar</button>
+                </div>
+              </div>
+
+              <div className="bg-white shadow-xl print:shadow-none" style={{ padding: "10mm", fontFamily: "Inter, system-ui, sans-serif" }}>
+                
+                {/* Header */}
+                <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3 mb-4">
+                  <div>
+                    <div className="flex items-center gap-3"><img src={LOGO_BASE64} alt="Costa Pinto" className="w-10 h-10 rounded-lg" /><div><h1 className="text-[15px] font-extrabold text-slate-900">COSTA PINTO • RELATÓRIO DETALHADO</h1></div></div>
+                    <p className="text-[9px] text-slate-500 font-semibold">BOLETIM OPERACIONAL DIA A DIA — OPERADORES E MÁQUINAS</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[12px] font-bold text-[#2563eb]">Competência: {competenciaLabel}</p>
+                    <p className="text-[9px] text-slate-400">Emitido: {new Date().toLocaleDateString("pt-BR")} {new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                </div>
+
+                {/* KPIs */}
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  <div className="border border-slate-200 rounded p-2 text-center">
+                    <p className="text-[7px] font-bold text-slate-400 uppercase">Lançamentos</p>
+                    <p className="text-[16px] font-extrabold text-slate-900">{compLaunches.length}</p>
+                  </div>
+                  <div className="border border-slate-200 rounded p-2 text-center">
+                    <p className="text-[7px] font-bold text-slate-400 uppercase">Horas Totais</p>
+                    <p className="text-[16px] font-extrabold text-[#2563eb]">{totalHoras.toFixed(1)}h</p>
+                  </div>
+                  <div className="border border-slate-200 rounded p-2 text-center">
+                    <p className="text-[7px] font-bold text-slate-400 uppercase">Dias Operados</p>
+                    <p className="text-[16px] font-extrabold text-slate-900">{uniqueDays.size}</p>
+                  </div>
+                  <div className="border border-slate-200 rounded p-2 text-center">
+                    <p className="text-[7px] font-bold text-slate-400 uppercase">Operadores</p>
+                    <p className="text-[16px] font-extrabold text-slate-900">{uniqueOps.size}</p>
+                  </div>
+                  <div className="border border-slate-200 rounded p-2 text-center">
+                    <p className="text-[7px] font-bold text-slate-400 uppercase">Equipamentos</p>
+                    <p className="text-[16px] font-extrabold text-slate-900">{uniqueEquips.size}</p>
+                  </div>
+                </div>
+
+                {/* Detailed Table */}
+                <table className="w-full text-[8px] border-collapse mb-4">
+                  <thead>
+                    <tr className="bg-slate-800 text-white">
+                      <th className="px-1.5 py-1 text-left font-semibold">Data</th>
+                      <th className="px-1.5 py-1 text-left font-semibold">Operador</th>
+                      <th className="px-1.5 py-1 text-left font-semibold">Cód</th>
+                      <th className="px-1.5 py-1 text-left font-semibold">Frota</th>
+                      <th className="px-1.5 py-1 text-left font-semibold">Equipamento</th>
+                      <th className="px-1.5 py-1 text-left font-semibold">UP</th>
+                      <th className="px-1.5 py-1 text-left font-semibold">Fazenda</th>
+                      <th className="px-1.5 py-1 text-left font-semibold">Atividade</th>
+                      <th className="px-1.5 py-1 text-center font-semibold">Hor.Ini</th>
+                      <th className="px-1.5 py-1 text-center font-semibold">Hor.Fin</th>
+                      <th className="px-1.5 py-1 text-center font-bold">Horas</th>
+                      <th className="px-1.5 py-1 text-center font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(byDate.entries()).map(([date, dayLaunches]) => {
+                      const dayTotal = dayLaunches.reduce((s, l) => s + l.horas_trabalhadas, 0);
+                      const dateParts = date.split("-");
+                      const dateFormatted = `${dateParts[2]}/${dateParts[1]}`;
+                      return dayLaunches.map((l, i) => (
+                        <tr key={l.id} className={`${i % 2 === 0 ? "bg-white" : "bg-slate-50"} border-b border-slate-100`}>
+                          {i === 0 ? (
+                            <td className="px-1.5 py-1 font-bold text-[#2563eb] border-l-2 border-[#2563eb] bg-blue-50/30" rowSpan={dayLaunches.length}>
+                              {dateFormatted}
+                              <span className="block text-[7px] text-slate-400 font-normal">{dayTotal.toFixed(1)}h total</span>
+                            </td>
+                          ) : null}
+                          <td className="px-1.5 py-1 text-slate-800 font-medium truncate max-w-[100px]">{l.operador_nome}</td>
+                          <td className="px-1.5 py-1 text-slate-500 font-mono">{l.operador_codigo}</td>
+                          <td className="px-1.5 py-1 font-semibold text-[#2563eb]">{l.frota}</td>
+                          <td className="px-1.5 py-1 text-slate-600 truncate max-w-[80px]">{(l.equipamento || "").split(" ")[0]}</td>
+                          <td className="px-1.5 py-1 font-mono text-slate-700">{l.up}</td>
+                          <td className="px-1.5 py-1 text-slate-600 truncate max-w-[90px]">{l.fazenda || "—"}</td>
+                          <td className="px-1.5 py-1 text-slate-600 truncate max-w-[80px]">{l.atividade}</td>
+                          <td className="px-1.5 py-1 text-center font-mono text-slate-500">{l.horimetro_inicial?.toFixed(1)}</td>
+                          <td className="px-1.5 py-1 text-center font-mono text-slate-500">{l.horimetro_final?.toFixed(1)}</td>
+                          <td className="px-1.5 py-1 text-center font-bold text-slate-900">{l.horas_trabalhadas.toFixed(1)}</td>
+                          <td className="px-1.5 py-1 text-center">
+                            <span className={`px-1 py-0.5 rounded text-[7px] font-bold ${
+                              l.status === "FATURADO" ? "bg-green-100 text-green-700" :
+                              l.status === "APROVADO" ? "bg-blue-100 text-blue-700" :
+                              l.status === "DEVOLVIDO" ? "bg-red-100 text-red-600" :
+                              "bg-amber-100 text-amber-700"
+                            }`}>{l.status}</span>
+                          </td>
+                        </tr>
+                      ));
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-800 text-white font-bold text-[9px]">
+                      <td className="px-1.5 py-1.5" colSpan={10}>TOTAL DA COMPETÊNCIA</td>
+                      <td className="px-1.5 py-1.5 text-center">{totalHoras.toFixed(1)}h</td>
+                      <td className="px-1.5 py-1.5 text-center">{compLaunches.length} boletins</td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                {/* Disponibilidade Mecânica */}
+                <div style={{ pageBreakBefore: "auto" }}>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Disponibilidade Mecânica — Horas Acumuladas por Equipamento</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                    {equipEntries.map(([frota, hours]) => {
+                      const pct = Math.round((hours / maxPossibleHours) * 100);
+                      const eq = equipments.find(e => e.frota === frota);
+                      return (
+                        <div key={frota} className="flex items-center gap-2 text-[8px]">
+                          <span className="w-[70px] font-semibold text-[#2563eb] truncate">{frota}</span>
+                          <span className="w-[60px] text-slate-500 truncate">{(eq?.tipo || "").split(" ")[0]}</span>
+                          <div className="flex-1 bg-slate-200 rounded-full h-2 overflow-hidden">
+                            <div className="h-full rounded-full bg-[#2563eb]" style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                          <span className="w-[45px] text-right font-bold text-slate-900">{hours.toFixed(1)}h</span>
+                          <span className="w-[25px] text-right text-slate-400">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-3 gap-6 mt-8 pt-4">
+                  <div className="text-center space-y-1.5">
+                    <div className="border-t border-slate-400 pt-1.5 w-36 mx-auto" />
+                    <p className="text-[9px] font-semibold text-slate-700">Técnico Responsável</p>
+                  </div>
+                  <div className="text-center space-y-1.5">
+                    <div className="border-t border-slate-400 pt-1.5 w-36 mx-auto" />
+                    <p className="text-[9px] font-semibold text-slate-700">Coordenador de Faturamento</p>
+                  </div>
+                  <div className="text-center space-y-1.5">
+                    <div className="border-t border-slate-400 pt-1.5 w-36 mx-auto" />
+                    <p className="text-[9px] font-semibold text-slate-700">Gerência Florestal</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-2 border-t border-slate-200 text-[7px] text-slate-300 text-center">
+                  SIGOL — Sistema Integrado de Gestão Operacional de Lançamentos • Relatório gerado automaticamente • {new Date().toLocaleString("pt-BR")}
                 </div>
               </div>
             </div>

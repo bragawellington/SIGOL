@@ -29,6 +29,9 @@ export interface Equipamento {
   ni: string;
   valor_hora: number;
   ativo: boolean;
+  em_manutencao?: boolean;
+  manutencao_tipo?: string;
+  manutencao_inicio?: string;
   // Computed fields injected by API
   horas_acumuladas?: number;
   valor_produzido?: number;
@@ -66,6 +69,8 @@ export interface Lancamento {
   criado_em: string;
   aprovado_por: string | null;
   aprovado_em: string | null;
+  aprovado_lat?: number | null;
+  aprovado_lng?: number | null;
   faturado_por: string | null;
   faturado_em: string | null;
   valor_hora_faturamento?: number;

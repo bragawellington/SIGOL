@@ -1,3 +1,4 @@
+import { LOGO_BASE64 } from "../lib/logoBase64";
 import React, { useState, useEffect } from "react";
 import { 
   CheckSquare, Square, DollarSign, CreditCard, ChevronDown, Check,
@@ -37,6 +38,7 @@ export default function FaturamentoTab({
   const [discountVal, setDiscountVal] = useState(""); // Ajuste/Desconto em R$
   const [submittingBulk, setSubmittingBulk] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showConsolidated, setShowConsolidated] = useState(false);
   const [clientName, setClientName] = useState("");
   const [boletimNumber, setBoletimNumber] = useState<number | null>(null);
 
@@ -276,7 +278,7 @@ Confirmar faturamento oficial?`;
   const frotasList = Array.from(new Set(approvedLaunches.map(l => l.frota)));
   const upsList = Array.from(new Set(approvedLaunches.map(l => l.up)));
 
-  return (
+  const mainContent = (
     <div className="space-y-6 font-sans">
       
       {/* Header and Controls */}
@@ -686,7 +688,14 @@ Confirmar faturamento oficial?`;
                 className="inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 bg-[#f8fafc] hover:bg-[#e2ece6] border border-[#e2e8f0] text-[#2563eb] rounded-lg text-xs font-bold transition-all"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Exportar Histórico faturamento</span>
+                <span>Excel Histórico</span>
+              </button>
+              <button
+                onClick={() => setShowConsolidated(true)}
+                className="inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-all"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>PDF Consolidado</span>
               </button>
             </div>
 
@@ -1289,4 +1298,144 @@ Confirmar faturamento oficial?`;
 
     </div>
   );
+
+  // Consolidated report content
+  const consolidatedReport = showConsolidated && (() => {
+    // Group billed launches by equipment
+    const byEquip = new Map<string, typeof billedLaunches>();
+    for (const l of billedLaunches) {
+      const arr = byEquip.get(l.frota) || [];
+      arr.push(l);
+      byEquip.set(l.frota, arr);
+    }
+    const equipGroups = Array.from(byEquip.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const grandTotal = billedLaunches.reduce((s, l) => s + (l.valor_total_faturamento || l.horas_sap * getStandardRate(l.frota)), 0);
+    const grandHours = billedLaunches.reduce((s, l) => s + l.horas_sap, 0);
+
+    // By fazenda
+    const byFazenda = new Map<string, number>();
+    for (const l of billedLaunches) {
+      const f = l.fazenda || "Não informada";
+      byFazenda.set(f, (byFazenda.get(f) || 0) + l.horas_sap);
+    }
+    const fazendaEntries = Array.from(byFazenda.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+    return (
+      <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print:bg-white print:static">
+        <div className="max-w-[210mm] mx-auto my-6 print:my-0">
+          <div className="flex items-center justify-between mb-3 px-2 print:hidden">
+            <span className="text-white text-sm font-semibold">Relatório Consolidado de Faturamento</span>
+            <div className="flex gap-2">
+              <button onClick={() => window.print()} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
+              <button onClick={() => setShowConsolidated(false)} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-lg">Fechar</button>
+            </div>
+          </div>
+
+          <div className="bg-white shadow-xl print:shadow-none" style={{ padding: "15mm 12mm", minHeight: "297mm", fontFamily: "Inter, system-ui, sans-serif" }}>
+            <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3 mb-5">
+              <div>
+                <div className="flex items-center gap-3"><img src={LOGO_BASE64} alt="Costa Pinto" className="w-12 h-12 rounded-lg" /><div><h1 className="text-[16px] font-extrabold text-slate-900">COSTA PINTO • RELATÓRIO CONSOLIDADO</h1><p className="text-[9px] text-slate-500 font-semibold">DEMONSTRATIVO DE FATURAMENTO MENSAL</p></div></div>
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">DEMONSTRATIVO MENSAL POR EQUIPAMENTO</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-500">Emitido: {new Date().toLocaleDateString("pt-BR")}</p>
+                <p className="text-[12px] font-bold text-[#2563eb] mt-1">{billedLaunches.length} boletins faturados</p>
+              </div>
+            </div>
+
+            {/* Grand totals */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="border border-slate-200 rounded-lg p-3 text-center">
+                <p className="text-[8px] font-bold text-slate-400 uppercase">Faturamento Total</p>
+                <p className="text-[20px] font-extrabold text-emerald-700">{formatCurrency(grandTotal)}</p>
+              </div>
+              <div className="border border-slate-200 rounded-lg p-3 text-center">
+                <p className="text-[8px] font-bold text-slate-400 uppercase">Horas Totais</p>
+                <p className="text-[20px] font-extrabold text-slate-900">{grandHours.toFixed(1)}h</p>
+              </div>
+              <div className="border border-slate-200 rounded-lg p-3 text-center">
+                <p className="text-[8px] font-bold text-slate-400 uppercase">Equipamentos</p>
+                <p className="text-[20px] font-extrabold text-[#2563eb]">{equipGroups.length}</p>
+              </div>
+            </div>
+
+            {/* By Equipment table */}
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Detalhamento por Equipamento</p>
+            <table className="w-full text-[9px] border-collapse mb-5">
+              <thead>
+                <tr className="bg-slate-800 text-white">
+                  <th className="px-2 py-1.5 text-left">Frota</th>
+                  <th className="px-2 py-1.5 text-left">Equipamento</th>
+                  <th className="px-2 py-1.5 text-center">Boletins</th>
+                  <th className="px-2 py-1.5 text-center">Horas</th>
+                  <th className="px-2 py-1.5 text-center">Tarifa (R$/h)</th>
+                  <th className="px-2 py-1.5 text-right">Valor (R$)</th>
+                  <th className="px-2 py-1.5 text-center">% do Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {equipGroups.map(([frota, eqLaunches], idx) => {
+                  const eqHours = eqLaunches.reduce((s, l) => s + l.horas_sap, 0);
+                  const eqRate = getStandardRate(frota);
+                  const eqTotal = eqLaunches.reduce((s, l) => s + (l.valor_total_faturamento || l.horas_sap * eqRate), 0);
+                  const pct = grandTotal > 0 ? Math.round((eqTotal / grandTotal) * 100) : 0;
+                  const eq = equipments.find(e => e.frota === frota);
+                  return (
+                    <tr key={frota} className={`${idx % 2 === 0 ? "bg-white" : "bg-slate-50"} border-b border-slate-100`}>
+                      <td className="px-2 py-1.5 font-bold text-[#2563eb]">{frota}</td>
+                      <td className="px-2 py-1.5 text-slate-600">{eq?.tipo || (eqLaunches[0]?.equipamento || "").split(" ")[0]}</td>
+                      <td className="px-2 py-1.5 text-center">{eqLaunches.length}</td>
+                      <td className="px-2 py-1.5 text-center font-mono">{eqHours.toFixed(1)}</td>
+                      <td className="px-2 py-1.5 text-center font-mono">{formatCurrency(eqRate)}</td>
+                      <td className="px-2 py-1.5 text-right font-bold">{formatCurrency(eqTotal)}</td>
+                      <td className="px-2 py-1.5 text-center">
+                        <div className="flex items-center gap-1">
+                          <div className="flex-1 bg-slate-200 rounded-full h-1.5"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} /></div>
+                          <span className="w-8 text-right text-slate-500">{pct}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-800 text-white font-bold">
+                  <td className="px-2 py-1.5" colSpan={3}>TOTAL GERAL</td>
+                  <td className="px-2 py-1.5 text-center">{grandHours.toFixed(1)}h</td>
+                  <td className="px-2 py-1.5"></td>
+                  <td className="px-2 py-1.5 text-right">{formatCurrency(grandTotal)}</td>
+                  <td className="px-2 py-1.5 text-center">100%</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            {/* Top Fazendas */}
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Horas por Fazenda (Top 10)</p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-5">
+              {fazendaEntries.map(([faz, hours]) => (
+                <div key={faz} className="flex items-center gap-2 text-[8px]">
+                  <span className="w-[120px] text-slate-700 font-medium truncate">{faz}</span>
+                  <div className="flex-1 bg-slate-200 rounded-full h-2"><div className="h-full rounded-full bg-[#2563eb]" style={{ width: `${(hours / fazendaEntries[0][1]) * 100}%` }} /></div>
+                  <span className="w-[40px] text-right font-bold text-slate-900">{hours.toFixed(1)}h</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Signatures */}
+            <div className="grid grid-cols-3 gap-6 mt-8 pt-6">
+              <div className="text-center space-y-2"><div className="border-t border-slate-400 pt-2 w-40 mx-auto" /><p className="text-[10px] font-semibold text-slate-700">Coordenador de Faturamento</p></div>
+              <div className="text-center space-y-2"><div className="border-t border-slate-400 pt-2 w-40 mx-auto" /><p className="text-[10px] font-semibold text-slate-700">Gerência Florestal</p></div>
+              <div className="text-center space-y-2"><div className="border-t border-slate-400 pt-2 w-40 mx-auto" /><p className="text-[10px] font-semibold text-slate-700">Financeiro Corporativo</p></div>
+            </div>
+
+            <div className="mt-6 pt-2 border-t border-slate-200 text-[7px] text-slate-300 text-center">
+              SIGOL • Documento gerado automaticamente • {new Date().toLocaleString("pt-BR")}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  })();
+
+  return <>{mainContent}{consolidatedReport}</>;
 }

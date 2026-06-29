@@ -41,6 +41,8 @@ export default function LancamentosTab({
   const [formFileName, setFormFileName] = useState<string | null>(null);
   const [formFileDragActive, setFormFileDragActive] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
   const [filterFrota, setFilterFrota] = useState<string>("ALL");
   const [filterUP, setFilterUP] = useState<string>("ALL");
   const [filterSearch, setFilterSearch] = useState("");
@@ -366,11 +368,12 @@ export default function LancamentosTab({
       .sort((a, b) => b.data.localeCompare(a.data) || Number(b.horimetro_final) - Number(a.horimetro_final));
 
     const latestHorFinal = sortedEqLaunches.length > 0 ? sortedEqLaunches[0].horimetro_final : 0;
+    const hasHistory = sortedEqLaunches.length > 0;
 
     setFormData(prev => ({
       ...prev,
       frota: frotaCode,
-      horimetro_inicial: latestHorFinal > 0 ? String(latestHorFinal) : "2000.0"
+      horimetro_inicial: hasHistory ? String(latestHorFinal) : ""
     }));
   };
 
@@ -431,10 +434,12 @@ export default function LancamentosTab({
       l.atividade.toLowerCase().includes(filterSearch.toLowerCase());
 
     const matchesStatus = filterStatus === "ALL" ? true : l.status === filterStatus;
+    const matchesDateFrom = !filterDateFrom || l.data >= filterDateFrom;
+    const matchesDateTo = !filterDateTo || l.data <= filterDateTo;
     const matchesFrota = filterFrota === "ALL" ? true : l.frota === filterFrota;
     const matchesUP = filterUP === "ALL" ? true : l.up === filterUP;
 
-    return matchesSearch && matchesStatus && matchesFrota && matchesUP;
+    return matchesSearch && matchesStatus && matchesFrota && matchesUP && matchesDateFrom && matchesDateTo;
   });
 
   // 5. Handlers
@@ -453,12 +458,22 @@ export default function LancamentosTab({
       return setValidationError(`Não é permitido registrar apontamento com data futura (${formatDateBR(formData.data)}). A data máxima permitida é hoje (${formatDateBR(todayStr)}).`);
     }
 
-    // Rule: Permitido apenas 01 lançamento por dia e frota.
-    const alreadyExists = launches.some(
-      l => l.data === formData.data && l.frota === formData.frota
+    // Rule: Bloqueio de data retroativa - Operador só pode lançar hoje ou ontem
+    if (currentUser.perfil === "OPERADOR") {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+      if (formData.data < yesterdayStr) {
+        return setValidationError(`Operadores podem lançar apenas no dia atual ou anterior. Para datas mais antigas, solicite ao Faturamento.`);
+      }
+    }
+
+    // Rule: Alerta de turno duplicado - mesma frota + mesmo dia + mesmo operador
+    const duplicateAlert = launches.some(
+      l => l.data === formData.data && l.frota === formData.frota && l.operador_codigo === formData.operador_codigo
     );
-    if (alreadyExists) {
-      return setValidationError(`Já existe um boletim operacional registrado para a frota ${formData.frota} na data ${formatDateBR(formData.data)}.`);
+    if (duplicateAlert) {
+      return setValidationError(`Já existe um boletim para a frota ${formData.frota} no dia ${formatDateBR(formData.data)} com seu registro. Verifique antes de lançar novamente.`);
     }
 
     const hInit = Number(formData.horimetro_inicial);
@@ -701,11 +716,21 @@ export default function LancamentosTab({
             className="w-full px-3 py-1.5 bg-[#f8fafc]/50 border border-[#e2e8f0] rounded-lg text-xs focus:ring-1 focus:ring-[#2563eb] focus:border-[#2563eb] focus:bg-white text-[#0f172a] focus:outline-hidden font-medium"
           >
             <option value="ALL">Todos os Status</option>
-            <option value="PENDENTE">🟡 Pendente (Técnico)</option>
-            <option value="APROVADO">🔵 Aprovado Técnico</option>
-            <option value="DEVOLVIDO">🔴 Devolvido para Ajuste</option>
+            <option value="PENDENTE">🟡 Pendente</option>
+            <option value="APROVADO">🔵 Aprovado</option>
+            <option value="DEVOLVIDO">🔴 Devolvido</option>
             <option value="FATURADO">🟢 Faturado</option>
           </select>
+
+          {/* Date From */}
+          <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
+            className="w-full px-3 py-1.5 bg-[#f8fafc]/50 border border-[#e2e8f0] rounded-lg text-xs focus:ring-1 focus:ring-[#2563eb] text-[#0f172a] focus:outline-hidden font-medium"
+            title="Data inicial" />
+
+          {/* Date To */}
+          <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
+            className="w-full px-3 py-1.5 bg-[#f8fafc]/50 border border-[#e2e8f0] rounded-lg text-xs focus:ring-1 focus:ring-[#2563eb] text-[#0f172a] focus:outline-hidden font-medium"
+            title="Data final" />
 
           {/* Frota Filter */}
           <select
@@ -948,19 +973,33 @@ export default function LancamentosTab({
                   />
                 </div>
 
-                {/* Horimetro Inicial (Pre-filled chronologically based on last entry) */}
+                {/* Horimetro Inicial */}
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Horímetro Inicial</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    required
-                    disabled
-                    value={formData.horimetro_inicial}
-                    placeholder="2000.0"
-                    className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none"
-                  />
-                  <span className="text-[10px] text-[#64748b] font-semibold mt-1 block leading-tight">Último horímetro lançado (carregamento automático)</span>
+                  {(() => {
+                    const hasHistory = launches.some(l => l.frota === formData.frota);
+                    return (
+                      <>
+                        <input
+                          type="number"
+                          step="0.1"
+                          required
+                          disabled={hasHistory}
+                          value={formData.horimetro_inicial}
+                          onChange={!hasHistory ? (e) => setFormData(prev => ({ ...prev, horimetro_inicial: e.target.value })) : undefined}
+                          placeholder="Ex: 2000.0"
+                          className={`w-full p-2 border border-[#e2e8f0] rounded-lg font-semibold ${
+                            hasHistory 
+                              ? "bg-[#f8fafc]/50 text-[#64748b] cursor-not-allowed select-none" 
+                              : "bg-[#f8fafc] text-[#0f172a] focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
+                          }`}
+                        />
+                        <span className="text-[10px] text-[#64748b] font-semibold mt-1 block leading-tight">
+                          {hasHistory ? "Bloqueado — continuação do último horímetro lançado" : "Primeiro lançamento desta frota — informe o horímetro inicial"}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Horimetro Final */}

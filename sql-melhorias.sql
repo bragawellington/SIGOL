@@ -75,5 +75,14 @@ GRANT EXECUTE ON FUNCTION resetar_senha(TEXT) TO anon, authenticated;
 -- 5. Flag de troca de senha obrigatória
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS senha_alterada BOOLEAN DEFAULT false;
 
+-- 6. Registro de manutenção nos equipamentos
+ALTER TABLE equipamentos ADD COLUMN IF NOT EXISTS em_manutencao BOOLEAN DEFAULT false;
+ALTER TABLE equipamentos ADD COLUMN IF NOT EXISTS manutencao_tipo TEXT;
+ALTER TABLE equipamentos ADD COLUMN IF NOT EXISTS manutencao_inicio TIMESTAMPTZ;
+
+-- 7. GPS na aprovação
+ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS aprovado_lat NUMERIC(10,6);
+ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS aprovado_lng NUMERIC(10,6);
+
 -- Marcar usuários existentes como não-alterada
 UPDATE usuarios SET senha_alterada = false WHERE senha_alterada IS NULL;

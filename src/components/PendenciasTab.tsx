@@ -12,7 +12,7 @@ interface PendenciasTabProps {
   equipments: Equipamento[];
   colaboradores: Colaborador[];
   currentUser: User;
-  onUpdateLaunchStatus: (id: string, status: "APROVADO" | "DEVOLVIDO" | "FATURADO", obs?: string, rate?: number) => Promise<void>;
+  onUpdateLaunchStatus: (id: string, status: "APROVADO" | "DEVOLVIDO" | "FATURADO", obs?: string, rate?: number, horas_sap?: number, otherFields?: Partial<Lancamento>) => Promise<void>;
   onNavigateToTab: (tab: string) => void;
 }
 
@@ -74,7 +74,16 @@ export default function PendenciasTab({
   const handleQuickStatus = async (id: string, status: "APROVADO" | "DEVOLVIDO" | "FATURADO", obs?: string) => {
     setLoadingId(id);
     try {
-      await onUpdateLaunchStatus(id, status, obs);
+      let gpsFields: Partial<Lancamento> = {};
+      if (status === "APROVADO" && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => 
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+          );
+          gpsFields = { aprovado_lat: pos.coords.latitude, aprovado_lng: pos.coords.longitude };
+        } catch { /* GPS indisponível, segue sem */ }
+      }
+      await onUpdateLaunchStatus(id, status, obs, undefined, undefined, gpsFields);
     } catch (e) {
       console.error(e);
     } finally {
