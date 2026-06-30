@@ -798,7 +798,7 @@ Confirmar faturamento oficial?`;
 
       {/* Visualização de Impressão e PDF */}
       {showPrintPreview && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto print-report">
           <div className="bg-white rounded-xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             
             {/* Modal actions header (not printable) */}
@@ -1041,7 +1041,7 @@ Confirmar faturamento oficial?`;
 
       {/* Modal de Edição de Lançamento Faturado */}
       {editingLaunch && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 print-report">
           <div className="bg-white rounded-xl max-w-lg w-full shadow-2xl border border-[#e2e8f0] overflow-hidden flex flex-col">
             
             {/* Modal Header */}
@@ -1321,7 +1321,7 @@ Confirmar faturamento oficial?`;
     const fazendaEntries = Array.from(byFazenda.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10);
 
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print:bg-white print:static">
+      <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print-report">
         <div className="max-w-[210mm] mx-auto my-6 print:my-0">
           <div className="flex items-center justify-between mb-3 px-2 print:hidden">
             <span className="text-white text-sm font-semibold">Relatório Consolidado de Faturamento</span>

@@ -436,7 +436,7 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
         }
 
         return (
-          <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print:bg-white print:static">
+          <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print-report">
             <div className="max-w-[210mm] mx-auto my-6 print:my-0">
               {/* Toolbar */}
               <div className="flex items-center justify-between mb-3 px-2 print:hidden">
@@ -604,7 +604,7 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
         const maxPossibleHours = periodDays.length * 9; // 9h/dia máximo
 
         return (
-          <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print:bg-white print:static">
+          <div className="fixed inset-0 bg-black/60 z-50 overflow-y-auto print-report">
             <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
             <div className="max-w-[297mm] mx-auto my-6 print:my-0">
               <div className="flex items-center justify-between mb-3 px-2 print:hidden">

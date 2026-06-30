@@ -57,19 +57,31 @@ body {
 }
 .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
 
-/* Print */
+/* Print - only shows .print-report content */
 @media print {
-  body { background: white !important; margin: 0 !important; padding: 0 !important; }
-  body > div > div > header,
-  body > div > div > aside,
-  body > div > div > main,
-  .no-print { display: none !important; }
+  body { background: white !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   
-  @page { size: A4 portrait; margin: 0; }
+  /* Hide everything by default */
+  body > #root > div > header,
+  body > #root > div > aside,
+  body > #root > div > nav { display: none !important; }
   
+  /* Hide main content but keep print overlays */
+  body > #root > div > main > div:first-child { display: none !important; } /* sticky header */
+  
+  /* Print overlay: make static and remove dark bg */
+  .print-report { 
+    position: static !important; 
+    background: white !important; 
+    overflow: visible !important;
+    inset: auto !important;
+  }
+  .print-report > div { margin: 0 !important; max-width: none !important; }
+  
+  .print\:hidden { display: none !important; }
   .print\:bg-white { background: white !important; }
-  .print\:static { position: static !important; }
   .print\:shadow-none { box-shadow: none !important; }
   .print\:my-0 { margin-top: 0 !important; margin-bottom: 0 !important; }
-  .print\:hidden { display: none !important; }
+  
+  @page { margin: 0; }
 }
