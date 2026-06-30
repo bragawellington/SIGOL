@@ -281,18 +281,7 @@ export default function LancamentosTab({
         };
 
         if (mappedRow.data && mappedRow.frota && mappedRow.up && !isNaN(mappedRow.horimetro_final)) {
-          // Resolve equipment and forestry data
-          const eq = equipments.find(e => e.frota === mappedRow.frota);
-          const fEntry = forestry.find(f => f.up === mappedRow.up);
-          const horas = mappedRow.horimetro_final - mappedRow.horimetro_inicial;
-          list.push({
-            ...mappedRow,
-            equipamento: eq?.tipo || mappedRow.frota,
-            fazenda: fEntry?.fazenda || "",
-            nucleo: fEntry?.nucleo || "",
-            area_up: fEntry?.area || 0,
-            rendimento: fEntry?.area && fEntry.area > 0 ? Number((horas / fEntry.area).toFixed(4)) : 0
-          });
+          list.push(mappedRow);
         }
       }
 
@@ -300,9 +289,46 @@ export default function LancamentosTab({
         throw new Error("Nenhum registro válido foi encontrado no arquivo. Verifique os campos obrigatórios (data, frota, up, horimetro_final).");
       }
 
+      // Resolve UPs from Supabase cadastro_florestal (batch lookup)
+      const uniqueUps = Array.from(new Set(list.map(l => l.up)));
+      let upLookup = new Map<string, { fazenda: string; nucleo: string; area: number }>();
+      
+      if (!isDemo && supabase) {
+        // Query in batches of 50
+        for (let i = 0; i < uniqueUps.length; i += 50) {
+          const batch = uniqueUps.slice(i, i + 50);
+          const { data } = await supabase.from('cadastro_florestal').select('up, fazenda, nucleo, area').in('up', batch);
+          if (data) {
+            for (const row of data) {
+              upLookup.set(row.up, { fazenda: row.fazenda, nucleo: row.nucleo, area: row.area });
+            }
+          }
+        }
+      } else {
+        // Demo: use local forestry array
+        for (const f of forestry) {
+          upLookup.set(f.up, { fazenda: f.fazenda, nucleo: f.nucleo, area: f.area });
+        }
+      }
+
+      // Enrich each launch with resolved data
+      const enrichedList = list.map(l => {
+        const eq = equipments.find(e => e.frota === l.frota);
+        const upInfo = upLookup.get(l.up);
+        const horas = l.horimetro_final - l.horimetro_inicial;
+        return {
+          ...l,
+          equipamento: eq?.tipo || l.frota,
+          fazenda: upInfo?.fazenda || "",
+          nucleo: upInfo?.nucleo || "",
+          area_up: upInfo?.area || 0,
+          rendimento: upInfo?.area && upInfo.area > 0 ? Number((horas / upInfo.area).toFixed(4)) : 0
+        };
+      });
+
       if (onImportLaunchList) {
-        await onImportLaunchList(list);
-        alert(`Planilha importada com sucesso! ${list.length} apontamentos registrados.`);
+        await onImportLaunchList(enrichedList);
+        alert(`Planilha importada com sucesso! ${enrichedList.length} apontamentos registrados.\n\n${upLookup.size} de ${uniqueUps.length} UPs resolvidas no cadastro florestal.`);
         setShowImportModal(false);
       }
     } catch (err: any) {
