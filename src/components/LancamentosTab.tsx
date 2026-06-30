@@ -322,6 +322,7 @@ export default function LancamentosTab({
           fazenda: upInfo?.fazenda || "",
           nucleo: upInfo?.nucleo || "",
           area_up: upInfo?.area || 0,
+          horas_sap: Number(horas.toFixed(1)),
           rendimento: upInfo?.area && upInfo.area > 0 ? Number((horas / upInfo.area).toFixed(4)) : 0
         };
       });
