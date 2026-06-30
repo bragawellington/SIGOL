@@ -254,20 +254,45 @@ export default function LancamentosTab({
           row[h] = columns[index];
         });
 
+        // Helper: convert Brazilian number (comma decimal) to JS number
+        const parseBrNumber = (val: string): number => {
+          if (!val) return 0;
+          return Number(val.replace(/\./g, "").replace(",", "."));
+        };
+
+        // Helper: convert dd/mm/yyyy to yyyy-mm-dd
+        const parseBrDate = (val: string): string => {
+          if (!val) return new Date().toISOString().split("T")[0];
+          const parts = val.split("/");
+          if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+          return val; // already yyyy-mm-dd
+        };
+
         const mappedRow = {
-          data: row.data || row["data de realização"] || row.date || new Date().toISOString().split("T")[0],
+          data: parseBrDate(row.data || row["data de realização"] || row.date || ""),
           frota: row.frota || row["código da frota"] || row.fleet || row.equipamento_codigo,
           up: row.up || row["unidade de produção"] || row["unidade de producao"] || row.projeto,
-          horimetro_inicial: Number(row.horimetro_inicial || row["horímetro inicial"] || row["horimetro inicial"] || 0),
-          horimetro_final: Number(row.horimetro_final || row["horímetro final"] || row["horimetro final"]),
+          horimetro_inicial: parseBrNumber(row.horimetro_inicial || row["horímetro inicial"] || row["horimetro inicial"] || "0"),
+          horimetro_final: parseBrNumber(row.horimetro_final || row["horímetro final"] || row["horimetro final"] || "0"),
           atividade: row.atividade || row.activity || "Corte Mecanizado",
           operador_codigo: row.operador_codigo || row["código do operador"] || row["codigo do operador"] || row.operator_code,
           operador_nome: row.operador_nome || row["nome do operador"] || row.operator_name,
-          observacao: row.observacao || row["observações"] || row.observacoes || row.notes || "Importado via planilha externa"
+          observacao: row.observacao || row["observações"] || row.observacoes || row.notes || "Importado via planilha"
         };
 
         if (mappedRow.data && mappedRow.frota && mappedRow.up && !isNaN(mappedRow.horimetro_final)) {
-          list.push(mappedRow);
+          // Resolve equipment and forestry data
+          const eq = equipments.find(e => e.frota === mappedRow.frota);
+          const fEntry = forestry.find(f => f.up === mappedRow.up);
+          const horas = mappedRow.horimetro_final - mappedRow.horimetro_inicial;
+          list.push({
+            ...mappedRow,
+            equipamento: eq?.tipo || mappedRow.frota,
+            fazenda: fEntry?.fazenda || "",
+            nucleo: fEntry?.nucleo || "",
+            area_up: fEntry?.area || 0,
+            rendimento: fEntry?.area && fEntry.area > 0 ? Number((horas / fEntry.area).toFixed(4)) : 0
+          });
         }
       }
 
@@ -652,7 +677,7 @@ export default function LancamentosTab({
           </div>
 
           {/* Conditional rendering for creation button depending on access controls (GERÊNCIA cannot create) */}
-          {currentUser.perfil === "OPERADOR" && (
+          {(currentUser.perfil === "OPERADOR" || currentUser.perfil === "FATURAMENTO") && (
             <button
               onClick={() => setShowAddForm(true)}
               id="btn_abrir_lancamento"
@@ -827,7 +852,7 @@ export default function LancamentosTab({
                         handleCSVImport(evt.target.result as string);
                       }
                     };
-                    reader.readAsText(file);
+                    reader.readAsText(file, "ISO-8859-1");
                   }
                 }}
                 className="hidden"
@@ -1069,24 +1094,34 @@ export default function LancamentosTab({
                 {/* Operador - sempre o usuário logado */}
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Código do Operador</label>
-                  <input
-                    type="text"
-                    required
-                    disabled
-                    value={formData.operador_codigo}
-                    className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none"
-                  />
+                  {currentUser.perfil === "FATURAMENTO" ? (
+                    <select
+                      value={formData.operador_codigo}
+                      onChange={(e) => {
+                        const selected = colaboradores.find(c => c.registro === e.target.value);
+                        setFormData(prev => ({ ...prev, operador_codigo: e.target.value, operador_nome: selected?.nome || "" }));
+                      }}
+                      className="w-full p-2 bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a] font-semibold rounded-lg focus:border-[#2563eb] focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
+                    >
+                      <option value="">-- Selecione o Operador --</option>
+                      {colaboradores.sort((a, b) => a.nome.localeCompare(b.nome)).map(c => (
+                        <option key={c.id} value={c.registro}>{c.registro} — {c.nome}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" required disabled value={formData.operador_codigo}
+                      className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none" />
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#64748b] mb-1">Nome do Operador</label>
-                  <input
-                    type="text"
-                    required
-                    disabled
-                    value={formData.operador_nome}
-                    className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none"
-                  />
-                  <span className="text-[10px] text-[#64748b] mt-1 block">Operador vinculado ao login. Não é possível alterar.</span>
+                  <input type="text" required disabled value={formData.operador_nome}
+                    className="w-full p-2 bg-[#f8fafc]/50 border border-[#e2e8f0] text-[#64748b] font-semibold rounded-lg cursor-not-allowed select-none" />
+                  <span className="text-[10px] text-[#64748b] mt-1 block">
+                    {currentUser.perfil === "FATURAMENTO" 
+                      ? "Lançamento realizado pelo FATURAMENTO em nome do operador selecionado." 
+                      : "Operador vinculado ao login. Não é possível alterar."}
+                  </span>
                 </div>
 
                 {/* Math values on the fly */}
@@ -1258,7 +1293,12 @@ export default function LancamentosTab({
                       <td className="p-3 whitespace-nowrap">
                         <div>
                           <span className="text-[#0f172a] font-bold">{launch.operador_nome}</span>
-                          <span className="block text-[10px] text-[#64748b] font-mono font-medium">{launch.operador_codigo}</span>
+                          <span className="block text-[10px] text-[#64748b] font-mono font-medium">
+                            {launch.operador_codigo}
+                            {launch.criado_por && !launch.criado_por.startsWith(launch.operador_codigo) && (
+                              <span className="ml-1.5 px-1.5 py-0.5 bg-purple-50 text-purple-600 border border-purple-200 rounded text-[8px] font-bold">VIA FATURAMENTO</span>
+                            )}
+                          </span>
                         </div>
                       </td>
 
