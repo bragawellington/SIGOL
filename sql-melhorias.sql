@@ -86,3 +86,37 @@ ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS aprovado_lng NUMERIC(10,6);
 
 -- Marcar usuários existentes como não-alterada
 UPDATE usuarios SET senha_alterada = false WHERE senha_alterada IS NULL;
+
+-- 8. RPC para sincronizar cadastro florestal nos lançamentos
+CREATE OR REPLACE FUNCTION sincronizar_cadastro()
+RETURNS INTEGER
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+  registros_atualizados INTEGER;
+BEGIN
+  -- Preencher fazenda/nucleo/area nos lançamentos que estão vazios
+  UPDATE lancamentos l
+  SET fazenda = cf.fazenda, nucleo = cf.nucleo, area_up = cf.area
+  FROM cadastro_florestal cf
+  WHERE l.up = cf.up AND (l.fazenda IS NULL OR l.fazenda = '' OR l.fazenda = '0');
+
+  GET DIAGNOSTICS registros_atualizados = ROW_COUNT;
+
+  -- Preencher equipamento onde está vazio
+  UPDATE lancamentos l
+  SET equipamento = e.tipo
+  FROM equipamentos e
+  WHERE l.frota = e.frota AND (l.equipamento IS NULL OR l.equipamento = '');
+
+  -- Recalcular rendimento onde está zerado mas tem área
+  UPDATE lancamentos
+  SET rendimento = ROUND((horimetro_final - horimetro_inicial) / area_up, 4)
+  WHERE area_up > 0 AND (rendimento IS NULL OR rendimento = 0)
+    AND horimetro_final > horimetro_inicial;
+
+  RETURN registros_atualizados;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION sincronizar_cadastro() TO anon, authenticated;

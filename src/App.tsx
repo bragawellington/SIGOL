@@ -166,7 +166,16 @@ export default function App() {
 
   // Load data after authentication
   useEffect(() => {
-    if (isAuthenticated) loadAllData();
+    if (isAuthenticated) {
+      loadAllData().then(() => {
+        // Auto-sync: preencher fazenda/nucleo/area nos lançamentos incompletos
+        if (supabase && currentUser && (currentUser.perfil === "FATURAMENTO" || currentUser.perfil === "GERÊNCIA")) {
+          supabase.rpc('sincronizar_cadastro').then(() => {
+            console.log("Sincronização de cadastro concluída.");
+          });
+        }
+      });
+    }
   }, [isAuthenticated]);
 
   // Force password change on first login
