@@ -77,18 +77,6 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
   }
   const availableNucleos = ["TODOS", ...Array.from(new Set(operadorNucleoMap.values())).sort()];
 
-  // Filtered collaborator matrix
-  const filteredCollabMatrix = collaboratorMatrix.filter(item => {
-    const matchSearch = !filterSearch || item.colaborador.nome.toLowerCase().includes(filterSearch.toLowerCase()) || item.colaborador.registro.toLowerCase().includes(filterSearch.toLowerCase());
-    const opNucleo = operadorNucleoMap.get(item.colaborador.registro) || "";
-    const matchNucleo = filterNucleo === "TODOS" || opNucleo === filterNucleo;
-    return matchSearch && matchNucleo;
-  });
-
-  const filteredEquipMatrix = equipmentMatrix.filter(item => {
-    return !filterSearch || item.equipamento.frota.toLowerCase().includes(filterSearch.toLowerCase()) || item.equipamento.tipo.toLowerCase().includes(filterSearch.toLowerCase());
-  });
-
   const handleExportExcel = () => {
     const data = activeSubTab === "COLABORADORES" ? collaboratorMatrix : equipmentMatrix;
     const headers = ["Nome", "Registro/Frota", ...periodDays.map(d => {
@@ -154,6 +142,18 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
       totalAcumulado: Number(totalAcumulado.toFixed(1)),
       percentOfMeta
     };
+  });
+
+  // Filtered matrices
+  const filteredCollabMatrix = collaboratorMatrix.filter(item => {
+    const matchSearch = !filterSearch || item.colaborador.nome.toLowerCase().includes(filterSearch.toLowerCase()) || item.colaborador.registro.toLowerCase().includes(filterSearch.toLowerCase());
+    const opNucleo = operadorNucleoMap.get(item.colaborador.registro) || "";
+    const matchNucleo = filterNucleo === "TODOS" || opNucleo === filterNucleo;
+    return matchSearch && matchNucleo;
+  });
+
+  const filteredEquipMatrix = equipmentMatrix.filter(item => {
+    return !filterSearch || item.equipamento.frota.toLowerCase().includes(filterSearch.toLowerCase()) || item.equipamento.tipo.toLowerCase().includes(filterSearch.toLowerCase());
   });
 
   return (

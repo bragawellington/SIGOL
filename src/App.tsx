@@ -677,9 +677,9 @@ export default function App() {
           )}
 
           {/* Login notification - summary */}
-          {!mustChangePassword && activeTab === "lancamentos" && (() => {
+          {!mustChangePassword && activeTab === "lancamentos" && currentUser && (() => {
             const myLaunches = launches.filter(l => 
-              l.operador_codigo === currentUser.codigo || l.criado_por === currentUser.email
+              l.operador_codigo === currentUser!.codigo || l.criado_por === currentUser!.email
             );
             const devolvidos = myLaunches.filter(l => l.status === "DEVOLVIDO").length;
             const pendentes = myLaunches.filter(l => l.status === "PENDENTE").length;
