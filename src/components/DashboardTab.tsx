@@ -6,10 +6,10 @@ import {
 import { 
   ListCollapse, Clock, CheckCircle2, FileSpreadsheet, Hourglass, Landmark, 
   FlameKindling, Tractor, TrendingUp, ShieldAlert, Layers, BarChart3, 
-  ArrowUpRight, DollarSign, Percent, Briefcase, HelpCircle, AlertCircle, Activity
+  ArrowUpRight, DollarSign, Percent, Briefcase, HelpCircle, AlertCircle, Activity, Download
 } from "lucide-react";
 import { Lancamento, Equipamento, User, CadastroFlorestal, Colaborador } from "../types";
-import { formatCurrency, formatDecimal, formatDateBR } from "../utils";
+import { formatCurrency, formatDecimal, formatDateBR, handlePrint } from "../utils";
 import DashboardRendimentoUP from "./DashboardRendimentoUP";
 
 interface DashboardTabProps {
@@ -25,7 +25,7 @@ export default function DashboardTab({ launches, equipments, colaboradores, curr
   const canApprove = currentUser.perfil === "TÉCNICO" || hasFinancialAccess;
   
   // Tab Switch for financial-privileged users or coordinators
-  const [activeSubTab, setActiveSubTab] = useState<"executivo" | "operacao" | "financeiro" | "coordenador" | "rendimento-up">("executivo");
+  const [activeSubTab, setActiveSubTab] = useState<"executivo" | "operacao" | "financeiro" | "coordenador" | "rendimento-up" | "gerencial">("executivo");
   const [selectedUpCode, setSelectedUpCode] = useState<string | null>(null);
   const [upSearch, setUpSearch] = useState("");
 
@@ -46,6 +46,8 @@ export default function DashboardTab({ launches, equipments, colaboradores, curr
   
   const compStartStr = `${compStart.getFullYear()}-${String(compStart.getMonth() + 1).padStart(2, "0")}-${String(compStart.getDate()).padStart(2, "0")}`;
   const compEndStr = `${compEnd.getFullYear()}-${String(compEnd.getMonth() + 1).padStart(2, "0")}-${String(compEnd.getDate()).padStart(2, "0")}`;
+  const monthNames = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+  const competenciaLabel = `${compStart.getDate()}/${monthNames[compStart.getMonth()]} → ${compEnd.getDate()}/${monthNames[compEnd.getMonth()]} ${compEnd.getFullYear()}`;
   
   // Filter launches by current competência
   const compLaunches = launches.filter(l => l.data >= compStartStr && l.data <= compEndStr);
@@ -544,7 +546,18 @@ export default function DashboardTab({ launches, equipments, colaboradores, curr
                 }`}
               >
                 <Briefcase className="w-4 h-4" />
-                <span>Coordenação de Faturamento</span>
+                <span>Coordenação</span>
+              </button>
+              <button
+                onClick={() => setActiveSubTab("gerencial")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  activeSubTab === "gerencial"
+                    ? "bg-[#0f172a] text-white shadow-xs"
+                    : "text-[#64748b] hover:text-[#0f172a]"
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Relatório Gerencial</span>
               </button>
             </>
           )}
@@ -1659,6 +1672,213 @@ export default function DashboardTab({ launches, equipments, colaboradores, curr
           currentUser={currentUser}
         />
       )}
+
+      {/* ======================= TAB: RELATÓRIO GERENCIAL ======================= */}
+      {hasFinancialAccess && activeSubTab === "gerencial" && (() => {
+        const activeOps = compLaunches.reduce((map, l) => {
+          map.set(l.operador_codigo, { nome: l.operador_nome, codigo: l.operador_codigo, horas: (map.get(l.operador_codigo)?.horas || 0) + l.horas_trabalhadas, dias: new Set([...(map.get(l.operador_codigo)?.dias || []), l.data]) });
+          return map;
+        }, new Map<string, { nome: string; codigo: string; horas: number; dias: Set<string> }>());
+
+        const ranking = Array.from(activeOps.values()).sort((a, b) => b.horas - a.horas);
+        const totalOps = colaboradores.length;
+        const opsAtivos = ranking.filter(r => r.horas > 0).length;
+        const opsSemRegistro = totalOps - opsAtivos;
+        const mediaGeral = opsAtivos > 0 ? totalHoursWork / opsAtivos : 0;
+        const metaPercent = totalOps > 0 ? Math.round((totalHoursWork / (totalOps * 180)) * 100) : 0;
+
+        // Daily hours data for chart
+        const dailyData = Array.from({ length: 30 }, (_, i) => {
+          const d = new Date(compStart);
+          d.setDate(d.getDate() + i);
+          const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          const dayHours = compLaunches.filter(l => l.data === ds).reduce((s, l) => s + l.horas_trabalhadas, 0);
+          return { dia: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`, horas: Number(dayHours.toFixed(1)) };
+        }).filter(d => d.horas > 0 || new Date() >= new Date(compStart.getFullYear(), compStart.getMonth(), compStart.getDate()));
+
+        // Pie data
+        const top4 = ranking.slice(0, 4);
+        const othersHours = ranking.slice(4).reduce((s, r) => s + r.horas, 0);
+        const pieData = [...top4.map(r => ({ name: r.nome.split(" ").slice(0, 2).join(" "), value: Number(r.horas.toFixed(1)) })), ...(othersHours > 0 ? [{ name: "Demais", value: Number(othersHours.toFixed(1)) }] : [])];
+        const COLORS = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"];
+
+        return (
+          <div className="space-y-4" id="report-gerencial">
+            {/* Header bar */}
+            <div className="bg-[#0f172a] rounded-xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img src="/logo.jpg" alt="Costa Pinto" className="w-10 h-10 rounded-lg" />
+                <div>
+                  <h2 className="text-white font-bold text-sm">RELATÓRIO GERENCIAL</h2>
+                  <p className="text-slate-400 text-[10px]">Controle de Horas Operacionais — {competenciaLabel}</p>
+                </div>
+              </div>
+              <button onClick={() => handlePrint("report-gerencial")} className="px-3 py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[10px] font-bold rounded-lg flex items-center gap-1.5">
+                <Download className="w-3 h-3" /> EXPORTAR
+              </button>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <div className="flex items-center gap-2 mb-1"><Clock className="w-4 h-4 text-[#2563eb]" /><span className="text-[9px] font-bold text-[#64748b] uppercase">Horas Acumuladas</span></div>
+                <p className="text-2xl font-black text-[#0f172a]">{totalHoursWork.toFixed(1)} <span className="text-sm text-[#64748b]">h</span></p>
+                <p className="text-[10px] text-[#64748b]">Total no período</p>
+              </div>
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <div className="flex items-center gap-2 mb-1"><TrendingUp className="w-4 h-4 text-[#2563eb]" /><span className="text-[9px] font-bold text-[#64748b] uppercase">Média por Operador</span></div>
+                <p className="text-2xl font-black text-[#0f172a]">{mediaGeral.toFixed(1)} <span className="text-sm text-[#64748b]">h</span></p>
+                <p className="text-[10px] text-[#64748b]">Entre os ativos</p>
+              </div>
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <div className="flex items-center gap-2 mb-1"><CheckCircle2 className="w-4 h-4 text-emerald-500" /><span className="text-[9px] font-bold text-[#64748b] uppercase">Operadores Ativos</span></div>
+                <p className="text-2xl font-black text-emerald-600">{opsAtivos}</p>
+                <p className="text-[10px] text-[#64748b]">Com produção</p>
+              </div>
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <div className="flex items-center gap-2 mb-1"><AlertCircle className="w-4 h-4 text-red-400" /><span className="text-[9px] font-bold text-[#64748b] uppercase">Sem Registro</span></div>
+                <p className="text-2xl font-black text-red-500">{opsSemRegistro}</p>
+                <p className="text-[10px] text-[#64748b]">Sem lançamentos</p>
+              </div>
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <div className="flex items-center gap-2 mb-1"><Layers className="w-4 h-4 text-[#2563eb]" /><span className="text-[9px] font-bold text-[#64748b] uppercase">Meta do Período</span></div>
+                <div className="flex items-center gap-3">
+                  <p className="text-2xl font-black text-[#0f172a]">180 <span className="text-sm text-[#64748b]">h</span></p>
+                  <div className="w-12 h-12 relative">
+                    <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90">
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="#e2e8f0" strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="#2563eb" strokeWidth="3" strokeDasharray={`${metaPercent} ${100 - metaPercent}`} strokeLinecap="round" />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-[#2563eb]">{metaPercent}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Line Chart */}
+              <div className="lg:col-span-2 bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <h3 className="text-xs font-bold text-[#0f172a] mb-3">EVOLUÇÃO DIÁRIA DAS HORAS</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={dailyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="dia" stroke="#94a3b8" fontSize={8} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={8} tickLine={false} />
+                    <Tooltip contentStyle={{ fontSize: 11 }} />
+                    <Area type="monotone" dataKey="horas" stroke="#2563eb" fill="#dbeafe" strokeWidth={2} name="Horas" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Pie Chart */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <h3 className="text-xs font-bold text-[#0f172a] mb-3">DISTRIBUIÇÃO DAS HORAS</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" label={({ name, value }) => `${name}: ${value}h`} labelLine={false}>
+                      {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <p className="text-center text-lg font-black text-[#0f172a] -mt-2">{totalHoursWork.toFixed(1)} h<br/><span className="text-[10px] text-[#64748b] font-normal">Total</span></p>
+              </div>
+            </div>
+
+            {/* Ranking + Stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Ranking */}
+              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                <h3 className="text-xs font-bold text-[#0f172a] mb-3">RANKING DE PRODUTIVIDADE</h3>
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-[#64748b] border-b border-[#e2e8f0]">
+                      <th className="py-1.5 text-left">#</th>
+                      <th className="py-1.5 text-left">Operador</th>
+                      <th className="py-1.5 text-right">Acumulado</th>
+                      <th className="py-1.5 text-right w-28">% Meta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ranking.slice(0, 10).map((r, i) => {
+                      const pct = Math.round((r.horas / 180) * 100);
+                      return (
+                        <tr key={r.codigo} className="border-b border-[#f1f5f9]">
+                          <td className="py-1.5 font-bold text-[#0f172a]">{i + 1}</td>
+                          <td className="py-1.5 font-semibold text-[#0f172a] truncate max-w-[150px]">{r.nome}</td>
+                          <td className="py-1.5 text-right font-bold">{r.horas.toFixed(1)} h</td>
+                          <td className="py-1.5">
+                            <div className="flex items-center gap-1.5 justify-end">
+                              <div className="w-16 bg-[#f1f5f9] rounded-full h-2"><div className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-[#2563eb]" : "bg-red-400"}`} style={{ width: `${Math.min(pct, 100)}%` }} /></div>
+                              <span className="w-8 text-right font-semibold">{pct}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Destaques */}
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                  <h3 className="text-xs font-bold text-[#0f172a] mb-3">DESEMPENHO POR OPERADOR</h3>
+                  <table className="w-full text-[10px]">
+                    <thead>
+                      <tr className="text-[#64748b] border-b border-[#e2e8f0]">
+                        <th className="py-1.5 text-left">Operador</th>
+                        <th className="py-1.5 text-center">Registro</th>
+                        <th className="py-1.5 text-center">Dias</th>
+                        <th className="py-1.5 text-center">Horas</th>
+                        <th className="py-1.5 text-center">Média/Dia</th>
+                        <th className="py-1.5 text-center">% Meta</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ranking.map(r => {
+                        const pct = Math.round((r.horas / 180) * 100);
+                        const mediaDia = r.dias.size > 0 ? r.horas / r.dias.size : 0;
+                        return (
+                          <tr key={r.codigo} className="border-b border-[#f1f5f9]">
+                            <td className="py-1.5 font-semibold text-[#0f172a] truncate max-w-[120px]">{r.nome}</td>
+                            <td className="py-1.5 text-center font-mono text-[#64748b]">{r.codigo}</td>
+                            <td className="py-1.5 text-center">{r.dias.size}</td>
+                            <td className="py-1.5 text-center font-bold">{r.horas.toFixed(1)} h</td>
+                            <td className="py-1.5 text-center">{mediaDia.toFixed(2)} h</td>
+                            <td className="py-1.5 text-center">
+                              <div className="flex items-center gap-1 justify-center">
+                                <div className="w-10 bg-[#f1f5f9] rounded-full h-1.5"><div className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : "bg-[#2563eb]"}`} style={{ width: `${Math.min(pct, 100)}%` }} /></div>
+                                <span className="font-semibold">{pct}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-[#0f172a] text-white font-bold">
+                        <td className="py-1.5 px-1" colSpan={2}>TOTAL GERAL</td>
+                        <td className="py-1.5 text-center">{new Set(compLaunches.map(l => l.data)).size}</td>
+                        <td className="py-1.5 text-center">{totalHoursWork.toFixed(1)} h</td>
+                        <td className="py-1.5 text-center">{opsAtivos > 0 ? (totalHoursWork / new Set(compLaunches.map(l => l.data)).size).toFixed(2) : "0"} h</td>
+                        <td className="py-1.5 text-center">{metaPercent}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Summary stats */}
+                <div className="bg-[#0f172a] rounded-xl p-4 grid grid-cols-4 gap-3 text-center text-white">
+                  <div><p className="text-xl font-black">{totalOps}</p><p className="text-[8px] text-slate-400">Total Operadores</p></div>
+                  <div><p className="text-xl font-black text-[#60a5fa]">{opsAtivos}</p><p className="text-[8px] text-slate-400">Ativos</p></div>
+                  <div><p className="text-xl font-black text-red-400">{opsSemRegistro}</p><p className="text-[8px] text-slate-400">Sem Registros</p></div>
+                  <div><p className="text-xl font-black text-emerald-400">{mediaGeral.toFixed(1)} h</p><p className="text-[8px] text-slate-400">Média (Ativos)</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

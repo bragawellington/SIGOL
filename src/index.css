@@ -57,31 +57,9 @@ body {
 }
 .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
 
-/* Print - only shows .print-report content */
+/* Print - handled by handlePrint() in utils.ts */
 @media print {
   body { background: white !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  
-  /* Hide everything by default */
-  body > #root > div > header,
-  body > #root > div > aside,
-  body > #root > div > nav { display: none !important; }
-  
-  /* Hide main content but keep print overlays */
-  body > #root > div > main > div:first-child { display: none !important; } /* sticky header */
-  
-  /* Print overlay: make static and remove dark bg */
-  .print-report { 
-    position: static !important; 
-    background: white !important; 
-    overflow: visible !important;
-    inset: auto !important;
-  }
-  .print-report > div { margin: 0 !important; max-width: none !important; }
-  
-  .print\:hidden { display: none !important; }
-  .print\:bg-white { background: white !important; }
-  .print\:shadow-none { box-shadow: none !important; }
-  .print\:my-0 { margin-top: 0 !important; margin-bottom: 0 !important; }
-  
-  @page { margin: 0; }
+  #print-container { background: white; }
+  @page { margin: 8mm; }
 }

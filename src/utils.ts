@@ -84,3 +84,29 @@ export function exportToCSV(filename: string, headers: string[], rows: any[][]) 
 export function triggerPrint() {
   window.print();
 }
+
+// Print utility - hides main app and only prints the report element
+export function handlePrint(reportElementId: string) {
+  const app = document.getElementById('root');
+  if (!app) { window.print(); return; }
+  
+  // Find all direct children of root and hide them
+  const rootDiv = app.firstElementChild as HTMLElement;
+  if (!rootDiv) { window.print(); return; }
+  rootDiv.style.display = 'none';
+  
+  // Create a print container with the report content
+  const reportEl = document.getElementById(reportElementId);
+  if (!reportEl) { rootDiv.style.display = ''; window.print(); return; }
+  
+  const printContainer = document.createElement('div');
+  printContainer.id = 'print-container';
+  printContainer.innerHTML = reportEl.innerHTML;
+  document.body.appendChild(printContainer);
+  
+  window.print();
+  
+  // Cleanup
+  document.body.removeChild(printContainer);
+  rootDiv.style.display = '';
+}

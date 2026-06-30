@@ -6,7 +6,7 @@ import {
   Receipt, Filter, ListChecks, HelpCircle, Coins, Trash2, FileSpreadsheet, Pencil, X
 } from "lucide-react";
 import { Lancamento, Equipamento, User } from "../types";
-import { formatCurrency, formatDecimal, formatDateBR, exportToCSV } from "../utils";
+import { formatCurrency, formatDecimal, formatDateBR, exportToCSV, handlePrint } from "../utils";
 import { supabase, isDemo } from "../lib/supabase";
 
 interface FaturamentoTabProps {
@@ -1326,12 +1326,12 @@ Confirmar faturamento oficial?`;
           <div className="flex items-center justify-between mb-3 px-2 print:hidden">
             <span className="text-white text-sm font-semibold">Relatório Consolidado de Faturamento</span>
             <div className="flex gap-2">
-              <button onClick={() => window.print()} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
+              <button onClick={() => handlePrint("report-print")} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
               <button onClick={() => setShowConsolidated(false)} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-lg">Fechar</button>
             </div>
           </div>
 
-          <div className="bg-white shadow-xl print:shadow-none" style={{ padding: "15mm 12mm", minHeight: "297mm", fontFamily: "Inter, system-ui, sans-serif" }}>
+          <div id="report-print" className="bg-white shadow-xl print:shadow-none" style={{ padding: "15mm 12mm", minHeight: "297mm", fontFamily: "Inter, system-ui, sans-serif" }}>
             <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3 mb-5">
               <div>
                 <div className="flex items-center gap-3"><img src={LOGO_BASE64} alt="Costa Pinto" className="w-12 h-12 rounded-lg" /><div><h1 className="text-[16px] font-extrabold text-slate-900">COSTA PINTO • RELATÓRIO CONSOLIDADO</h1><p className="text-[9px] text-slate-500 font-semibold">DEMONSTRATIVO DE FATURAMENTO MENSAL</p></div></div>

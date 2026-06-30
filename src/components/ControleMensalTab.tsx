@@ -2,7 +2,7 @@ import { LOGO_BASE64 } from "../lib/logoBase64";
 import { useState } from "react";
 import { Users, Tractor, CalendarDays, Award, ChevronLeft, ChevronRight, Calculator, FileCheck, Download } from "lucide-react";
 import { Lancamento, Colaborador, Equipamento } from "../types";
-import { formatDecimal, exportToCSV } from "../utils";
+import { formatDecimal, exportToCSV, handlePrint } from "../utils";
 
 interface ControleMensalTabProps {
   launches: Lancamento[];
@@ -442,13 +442,13 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
               <div className="flex items-center justify-between mb-3 px-2 print:hidden">
                 <span className="text-white text-sm font-semibold">Relatório de Controle Mensal — A4 Vertical</span>
                 <div className="flex gap-2">
-                  <button onClick={() => window.print()} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
+                  <button onClick={() => handlePrint("report-print")} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
                   <button onClick={() => setShowPrintView(false)} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-lg">Fechar</button>
                 </div>
               </div>
 
               {/* A4 Page */}
-              <div className="bg-white shadow-xl print:shadow-none" style={{ padding: "15mm 12mm", minHeight: "297mm", fontFamily: "Inter, system-ui, sans-serif" }}>
+              <div id="report-print" className="bg-white shadow-xl print:shadow-none" style={{ padding: "15mm 12mm", minHeight: "297mm", fontFamily: "Inter, system-ui, sans-serif" }}>
                 
                 {/* Header */}
                 <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3 mb-5">
@@ -610,12 +610,12 @@ export default function ControleMensalTab({ launches, colaboradores, equipments 
               <div className="flex items-center justify-between mb-3 px-2 print:hidden">
                 <span className="text-white text-sm font-semibold">Relatório Detalhado — A4 Paisagem</span>
                 <div className="flex gap-2">
-                  <button onClick={() => window.print()} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
+                  <button onClick={() => handlePrint("report-print")} className="px-4 py-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-semibold rounded-lg">Imprimir / Salvar PDF</button>
                   <button onClick={() => setShowDetailedReport(false)} className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-lg">Fechar</button>
                 </div>
               </div>
 
-              <div className="bg-white shadow-xl print:shadow-none" style={{ padding: "10mm", fontFamily: "Inter, system-ui, sans-serif" }}>
+              <div id="report-print" className="bg-white shadow-xl print:shadow-none" style={{ padding: "10mm", fontFamily: "Inter, system-ui, sans-serif" }}>
                 
                 {/* Header */}
                 <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3 mb-4">
