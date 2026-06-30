@@ -28,6 +28,7 @@ export default function DashboardTab({ launches, equipments, colaboradores, curr
   const [activeSubTab, setActiveSubTab] = useState<"executivo" | "operacao" | "financeiro" | "coordenador" | "rendimento-up" | "gerencial">("executivo");
   const [selectedUpCode, setSelectedUpCode] = useState<string | null>(null);
   const [upSearch, setUpSearch] = useState("");
+  const [expandedPanel, setExpandedPanel] = useState<string | null>(null);
 
   const getRate = (frota: string) => {
     const eq = equipments.find(e => e.frota === frota);
@@ -688,59 +689,81 @@ export default function DashboardTab({ launches, equipments, colaboradores, curr
               Painel de Saúde Operacional
             </h3>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className={`grid gap-4 ${expandedPanel ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-3"}`}>
               {/* Launches per day chart */}
-              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
-                <p className="text-[10px] font-bold text-[#64748b] uppercase mb-3">Lançamentos / Dia (30 dias)</p>
-                <div className="space-y-1">
-                  {Array.from(launchesByDay.entries()).sort((a, b) => a[0].localeCompare(b[0])).slice(-15).map(([date, count]) => (
-                    <div key={date} className="flex items-center gap-2 text-[10px]">
-                      <span className="w-10 font-mono text-[#64748b]">{date.split("-").slice(1).join("/")}</span>
-                      <div className="flex-1 bg-[#f8fafc] rounded-full h-3 overflow-hidden">
-                        <div className="h-full bg-[#2563eb] rounded-full" style={{ width: `${(count / maxDayCount) * 100}%` }} />
+              {(!expandedPanel || expandedPanel === "lancamentos") && (
+                <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-bold text-[#64748b] uppercase">Lançamentos / Dia (30 dias)</p>
+                    <button onClick={() => setExpandedPanel(expandedPanel === "lancamentos" ? null : "lancamentos")} className="text-[9px] text-[#2563eb] font-semibold hover:underline">
+                      {expandedPanel === "lancamentos" ? "Recolher ✕" : "Expandir ↗"}
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    {Array.from(launchesByDay.entries()).sort((a, b) => a[0].localeCompare(b[0])).slice(expandedPanel === "lancamentos" ? -30 : -10).map(([date, count]) => (
+                      <div key={date} className="flex items-center gap-2 text-[10px]">
+                        <span className="w-10 font-mono text-[#64748b]">{date.split("-").slice(1).join("/")}</span>
+                        <div className="flex-1 bg-[#f8fafc] rounded-full h-3 overflow-hidden">
+                          <div className="h-full bg-[#2563eb] rounded-full" style={{ width: `${(count / maxDayCount) * 100}%` }} />
+                        </div>
+                        <span className="w-5 text-right font-bold text-[#0f172a]">{count}</span>
                       </div>
-                      <span className="w-5 text-right font-bold text-[#0f172a]">{count}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Inactive operators */}
-              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
-                <p className="text-[10px] font-bold text-[#64748b] uppercase mb-2">Operadores Sem Lançamento (7 dias)</p>
-                {inactiveOps.length === 0 ? (
-                  <p className="text-xs text-green-600 font-semibold py-4 text-center">Todos os operadores estão ativos ✓</p>
-                ) : (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {inactiveOps.map(op => (
-                      <div key={op.id} className="flex items-center gap-2 text-[10px] py-1 border-b border-[#f1f5f9]">
-                        <span className="w-2 h-2 rounded-full bg-red-400" />
-                        <span className="font-semibold text-[#0f172a] flex-1 truncate">{op.nome}</span>
-                        <span className="text-[#64748b] font-mono">{op.registro}</span>
-                      </div>
-                    ))}
+              {(!expandedPanel || expandedPanel === "operadores") && (
+                <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-bold text-[#64748b] uppercase">Operadores Sem Lançamento (7 dias)</p>
+                    <button onClick={() => setExpandedPanel(expandedPanel === "operadores" ? null : "operadores")} className="text-[9px] text-[#2563eb] font-semibold hover:underline">
+                      {expandedPanel === "operadores" ? "Recolher ✕" : `Expandir (${inactiveOps.length}) ↗`}
+                    </button>
                   </div>
-                )}
-              </div>
+                  {inactiveOps.length === 0 ? (
+                    <p className="text-xs text-green-600 font-semibold py-4 text-center">Todos os operadores estão ativos ✓</p>
+                  ) : (
+                    <div className={`space-y-1 ${expandedPanel === "operadores" ? "" : "max-h-48"} overflow-y-auto`}>
+                      {inactiveOps.map(op => (
+                        <div key={op.id} className="flex items-center gap-2 text-[10px] py-1 border-b border-[#f1f5f9]">
+                          <span className="w-2 h-2 rounded-full bg-red-400" />
+                          <span className="font-semibold text-[#0f172a] flex-1 truncate">{op.nome}</span>
+                          <span className="text-[#64748b] font-mono">{op.registro}</span>
+                          <span className="text-[9px] text-[#94a3b8]">{op.funcao}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Idle equipment */}
-              <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
-                <p className="text-[10px] font-bold text-[#64748b] uppercase mb-2">Máquinas Paradas (+3 dias)</p>
-                {idleEquips.length === 0 ? (
-                  <p className="text-xs text-green-600 font-semibold py-4 text-center">Toda a frota está operando ✓</p>
-                ) : (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {idleEquips.map(eq => (
-                      <div key={eq.id} className="flex items-center gap-2 text-[10px] py-1 border-b border-[#f1f5f9]">
-                        <span className="w-2 h-2 rounded-full bg-amber-400" />
-                        <span className="font-bold text-[#2563eb]">{eq.frota}</span>
-                        <span className="text-[#64748b] flex-1 truncate">{eq.tipo}</span>
-                        {eq.em_manutencao && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">MANUTENÇÃO</span>}
-                      </div>
-                    ))}
+              {(!expandedPanel || expandedPanel === "maquinas") && (
+                <div className="bg-white rounded-xl border border-[#e2e8f0] p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-bold text-[#64748b] uppercase">Máquinas Paradas (+3 dias)</p>
+                    <button onClick={() => setExpandedPanel(expandedPanel === "maquinas" ? null : "maquinas")} className="text-[9px] text-[#2563eb] font-semibold hover:underline">
+                      {expandedPanel === "maquinas" ? "Recolher ✕" : `Expandir (${idleEquips.length}) ↗`}
+                    </button>
                   </div>
-                )}
-              </div>
+                  {idleEquips.length === 0 ? (
+                    <p className="text-xs text-green-600 font-semibold py-4 text-center">Toda a frota está operando ✓</p>
+                  ) : (
+                    <div className={`space-y-1 ${expandedPanel === "maquinas" ? "" : "max-h-48"} overflow-y-auto`}>
+                      {idleEquips.map(eq => (
+                        <div key={eq.id} className="flex items-center gap-2 text-[10px] py-1 border-b border-[#f1f5f9]">
+                          <span className="w-2 h-2 rounded-full bg-amber-400" />
+                          <span className="font-bold text-[#2563eb]">{eq.frota}</span>
+                          <span className="text-[#64748b] flex-1 truncate">{eq.tipo}</span>
+                          {eq.em_manutencao && <span className="text-[8px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">MANUTENÇÃO</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );
